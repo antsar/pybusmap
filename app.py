@@ -12,8 +12,7 @@ app.config.from_pyfile('config.py', silent=True)
 
 @app.route('/')
 def just_testing():
-    return str(app.config['SQLALCHEMY_URI'])
-    return "Brotato!"
+    return str("Hello World!")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
