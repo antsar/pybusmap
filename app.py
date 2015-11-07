@@ -1,5 +1,7 @@
 import os
 from flask import Flask
+from models import db
+import models
 
 app = Flask(__name__, instance_relative_config=True)
 
@@ -9,6 +11,9 @@ app.config.from_object('config.{0}Config'.format(env.capitalize()))
 
 # Load deployment-specific settings from instance/config.cfg
 app.config.from_pyfile('config.py', silent=True)
+
+# Database init
+db.init_app(app)
 
 @app.route('/')
 def just_testing():

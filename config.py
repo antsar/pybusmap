@@ -1,14 +1,17 @@
 class Config(object):
     from datetime import timedelta
-    SECRET_KEY = 'CHANGE_THIS'
+    SECRET_KEY = 'OVERRIDE THIS WITH A SECURE VALUE in instance/config.py!'
     CELERY_BROKER_URL = 'redis://'
     CELERY_RESULT_BACKEND = 'redis://'
-    # scheduled tasks
     CELERYBEAT_SCHEDULE = {
-        'get-routes-every-30s': {
+        'get-routes-every-3s': {
             'task': 'celerytasks.get_routes',
-            'schedule': timedelta(seconds=30),
+            'schedule': timedelta(seconds=3),
             'args': ("potato",)
+        },
+        'test-task': {
+            'task': 'celerytasks.test_task',
+            'schedule': timedelta(seconds=5),
         }
     }
 
