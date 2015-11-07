@@ -2,15 +2,16 @@
 BusMap is a real-time map of public transit vehicle locations. It's written in Python 3.4 with [Flask](http://flask.pocoo.org/).
 
 ## Setup
-- Install system-wide dependencies.  
+- Install system-wide dependencies  
     `sudo apt-get install python python-pip python-virtualenv libxml2-dev libxsl-dev`
-- Create/enter your virtualenv    
-    `. venv/bin/activate`
-- Install dependencies:    
+- Create and/or activate your virtualenv    
+    Create: `virtualenv venv`
+    Activate: `. venv/bin/activate`
+- Install dependencies    
     `pip install -r requirements.txt`
-- Initialize database:   
+- Initialize database   
     `python manage.py db upgrade`
-- Run development server:    
+- Run development server    
     `python app.py`
 - (Another terminal, also in virtualenv) Run celery for background task processing  
     `celery -A celerytasks.celery worker --beat`
@@ -35,4 +36,3 @@ Here's a sample uwsgi config for this application:
     die-on-term = true
     vacuum = true
     smart-attach-daemon = /tmp/pybusmap-celery.pid %(home)/bin/celery -A celerytasks.celery worker --beat --pidfile=/tmp/pybusmap-celery.pid --logfile=%(base)/log/celery/%n.log
-
