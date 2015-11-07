@@ -3,8 +3,19 @@ from datetime import timedelta
 from app import app, db
 from models import Update
 
+"""
+Celery is a task queue for background task processin. It is used in BusMap
+for scheduled tasks, which are configured in this file.
+
+The task execution schedule can be found in config.py.
+"""
+
+
+# Create new Celery object with configured broker; get other cfg params
 celery = Celery(app.import_name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
+
+# This wraps task execution in an app context
 TaskBase = celery.Task
 class ContextTask(TaskBase):
     abstract = True
@@ -13,8 +24,10 @@ class ContextTask(TaskBase):
             return TaskBase.__call__(self, *args, **kwargs)
 celery.Task = ContextTask
 
+# Task definitions:
+
 @celery.task()
-def get_routes(word):
+def get_agencies(word):
     # get bus routes from NextBus and store them in db
     print("get_routes {0}".format(word))
     return True;

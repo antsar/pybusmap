@@ -14,6 +14,7 @@ class Config(object):
             'schedule': timedelta(seconds=5),
         }
     }
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 class ProdConfig(Config):
     SQLALCHEMY_URI = 'postgresql://localhost/pybusmap_prod'
