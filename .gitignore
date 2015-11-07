@@ -31,3 +31,6 @@ pip-delete-this-directory.txt
 
 # Vim
 *.swp
+
+# Celery
+celerybeat-schedule.db
