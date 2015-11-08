@@ -4,17 +4,13 @@ class Config(object):
     CELERY_BROKER_URL = 'redis://'
     CELERY_RESULT_BACKEND = 'redis://'
     CELERYBEAT_SCHEDULE = {
-        'get-routes-every-3s': {
-            'task': 'celerytasks.get_routes',
-            'schedule': timedelta(seconds=3),
-            'args': ("potato",)
+        'update-routes-every-24h': {
+            'task': 'celerytasks.update_routes',
+            'schedule': timedelta(days=1),
         },
-        'test-task': {
-            'task': 'celerytasks.test_task',
-            'schedule': timedelta(seconds=5),
-        }
     }
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    AGENCIES = ["SAMPLE_AGENCY"]
 
 class ProdConfig(Config):
     SQLALCHEMY_URI = 'postgresql://localhost/pybusmap_prod'

@@ -15,6 +15,12 @@ BusMap is a real-time map of public transit vehicle locations. It's written in P
     `python app.py`
 - (Another terminal, also in virtualenv) Run celery for background task processing  
     `celery -A celerytasks.celery worker --beat`
+- Create `instance/config.py` and override the following config.py parameters:  
+
+    AGENCIES = ["rutgers"]
+    SECRET_KEY = 'ishownyishJurOdEgfivpavifConAfka'
+    SQLALCHEMY_URI = 'postgresql://pybusmap_dev:EkwurfeushBujSomsOrjeacjumKuvmai@localhost/pybusmap_dev'
+    SQLALCHEMY_DATABASE_URI = SQLALCHEMY_URI
 
 You should now be able to access the instance on port 5000.
 
@@ -26,18 +32,18 @@ Here's a sample uWSGI config for this application:
     plugins = python
     module = app
     callable = app
-    
+
     # Paths
     base = /var/www/pybusmap
     home = %(base)/venv
     chdir = /var/www/pybusmap
     pythonpath = %(base)
     socket = %(base)/uwsgi.sock
-    
+
     # Who the app runs as
     uid = anton
     gid = www-data
-    
+
     # Worker behavior
     die-on-term = true
     vacuum = true
