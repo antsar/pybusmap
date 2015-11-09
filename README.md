@@ -16,11 +16,10 @@ BusMap is a real-time map of public transit vehicle locations. It's written in P
 - (Another terminal, also in virtualenv) Run celery for background task processing  
     `celery -A celerytasks.celery worker --beat`
 - Create `instance/config.py` and override the following config.py parameters:  
-
-    AGENCIES = ["rutgers"]
+`    AGENCIES = ["rutgers"]
     SECRET_KEY = 'ishownyishJurOdEgfivpavifConAfka'
     SQLALCHEMY_URI = 'postgresql://pybusmap_dev:EkwurfeushBujSomsOrjeacjumKuvmai@localhost/pybusmap_dev'
-    SQLALCHEMY_DATABASE_URI = SQLALCHEMY_URI
+    SQLALCHEMY_DATABASE_URI = SQLALCHEMY_URI`
 
 You should now be able to access the instance on port 5000.
 
