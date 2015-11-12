@@ -16,11 +16,11 @@ BusMap is a real-time map of public transit vehicle locations. It's written in P
 - (Another terminal, also in virtualenv) Run celery for background task processing  
     `celery -A celerytasks.celery worker --beat`
 - Create `instance/config.py` and override the following config.py parameters:  
-
-    AGENCIES = ["rutgers"]
-    SECRET_KEY = 'ishownyishJurOdEgfivpavifConAfka'
-    SQLALCHEMY_URI = 'postgresql://pybusmap_dev:EkwurfeushBujSomsOrjeacjumKuvmai@localhost/pybusmap_dev'
-    SQLALCHEMY_DATABASE_URI = SQLALCHEMY_URI
+`    AGENCIES = ["agencytag1", "agencytag2"]
+    SECRET_KEY = 'GENERATE_SOMETHING_SECURE_HERE'
+    SQLALCHEMY_URI = 'postgresql://user:password@localhost/db_name'
+    SQLALCHEMY_DATABASE_URI = SQLALCHEMY_URI`    
+    You can generate the secret key with `apg -sm32`. Get agency tag(s) from [NextBus](http://webservices.nextbus.com/service/publicXMLFeed?command=agencyList).
 
 You should now be able to access the instance on port 5000.
 
