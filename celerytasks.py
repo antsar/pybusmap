@@ -1,7 +1,8 @@
 from celery import Celery
+from celery.utils.log import get_task_logger
 from datetime import timedelta
 from app import app, db
-from nextbus import NextBus
+from nextbus import Nextbus
 
 """
 Celery is a task queue for background task processin. It is used in BusMap
@@ -24,14 +25,31 @@ class ContextTask(TaskBase):
             return TaskBase.__call__(self, *args, **kwargs)
 celery.Task = ContextTask
 
+logger = get_task_logger(__name__)
+
 # Task definitions:
 @celery.task()
 def update_agencies():
-    NextBus.get_agencies()
+    Nextbus.get_agencies()
 
 @celery.task()
-def update_routes(agencies):
+def update_routes(agencies=None):
     from models import Agency
+    if not agencies:
+        agencies = app.config['AGENCIES']
+    route_count = 0
     for agency in db.session.query(Agency).all():
         if agency.tag in agencies:
-            NextBus.get_routes(agency)
+            route_count += len(Nextbus.get_routes(agency))
+    print("update_routes: Got {0} routes for {1} agencies".format(prediction_count, len(agencies)))
+
+@celery.task()
+def update_predictions(agencies=None):
+    from models import Agency
+    if not agencies:
+        agencies = app.config['AGENCIES']
+    prediction_count = 0
+    for agency_tag in agencies:
+        agency = db.session.query(Agency).filter_by(tag=agency_tag).one()
+        prediction_count += len(Nextbus.get_predictions(agency.routes))
+    print("update_predictions: Got {0} predictions {1} agencies".format(prediction_count, len(agencies)))

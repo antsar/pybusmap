@@ -1,31 +1,34 @@
 from sqlalchemy.sql.expression import ClauseElement
 from flask.ext.sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import  NoResultFound
 from datetime import datetime
 
 db = SQLAlchemy()
-
-# Many-to-many mapping tables
-route_stop_table = db.Table('route_stop', db.Model.metadata,
-    db.Column('route_id', db.Integer, db.ForeignKey('route.id')),
-    db.Column('stop_id', db.Integer, db.ForeignKey('stop.id'))
-)
 
 class BMModel():
     """
     Our own Model add-on class for adding utility functions to db.Model.
     """
     @classmethod
-    def get_or_create(model, session, defaults=None, **kwargs):
-        instance = session.query(model).filter_by(**kwargs).first()
-        if instance:
-            return instance
-        else:
-            params = dict((k, v) for k, v in kwargs.items() if not isinstance(v, ClauseElement))
-            params.update(defaults or {})
-            instance = model(**params)
-            session.add(instance)
-            session.commit()
-            return instance
+    def get_one(cls, session, **kwargs):
+        return session.query(cls).filter_by(**kwargs).first()
+
+    @classmethod
+    def get(cls, session, **kwargs):
+        return session.query(cls).filter_by(**kwargs).all()
+
+    @classmethod
+    def get_or_create(cls, session, create_method='', create_method_kwargs=None, **kwargs):
+        """ Imitate Django's get_or_create() """
+        try:
+            return session.query(cls).filter_by(**kwargs).one()
+        except NoResultFound:
+            kwargs.update(create_method_kwargs or {})
+            new = getattr(cls, create_method, cls)(**kwargs)
+            session.add(new)
+            session.flush()
+            return new
 
 
 class Agency(db.Model, BMModel):
@@ -49,6 +52,40 @@ class Agency(db.Model, BMModel):
     region = db.relationship("Region")
 
 
+class Prediction(db.Model, BMModel):
+    """
+    A vehicle arrival prediction
+    """
+    __tablename__ = "prediction"
+    id = db.Column(db.Integer, primary_key=True)
+
+    # route - the bus route
+    route_id = db.Column(db.Integer, db.ForeignKey('route.id'))
+    route = db.relationship("Route")
+
+    # prediction - the predicted time of arrival
+    prediction = db.Column(db.DateTime)
+
+    # created - when the prediction was made
+    created = db.Column(db.DateTime, default=datetime.now)
+
+    # is_departure - whether this is the time when the vehicle will depart
+    is_departure = db.Column(db.Boolean)
+
+    # has_layover - whether this is affected by a layover (prolonged stop)
+    has_layover  = db.Column(db.Boolean)
+
+    # direction - Direction for this prediction
+    direction_id = db.Column(db.Integer, db.ForeignKey('direction.id'))
+    direction = db.relationship("Direction")
+
+    # vehicle - Bus ID (not always numeric)
+    vehicle = db.Column(db.String)
+
+    # block - the vehicle's block
+    block = db.Column(db.String)
+
+
 class Region(db.Model, BMModel):
     """
     A geographic region
@@ -68,8 +105,8 @@ class Route(db.Model, BMModel):
     id = db.Column(db.Integer, primary_key=True)
 
     # agency - The agency which operates this route
-    agency_id = db.Column(db.Integer, db.ForeignKey('agency.id'))
-    agency = db.relationship("Agency")
+    agency_id = db.Column(db.Integer, db.ForeignKey('agency.id', ondelete="cascade"))
+    agency = db.relationship("Agency", backref="routes")
 
     # tag - Unique alphanumeric identifier (a.k.a. "machine name")
     tag = db.Column(db.String, unique=True)
@@ -99,10 +136,10 @@ class Route(db.Model, BMModel):
     lon_max = db.Column(db.Float)
 
     # directions - "Eastbound" / "Westbound", "Inbound" / "Outbound".
-    directions = db.relationship("RouteDirection", backref="route")
+    directions = db.relationship("Direction", backref="route")
 
     # stops - Stops or stations on this route
-    stops = db.relationship("Stop", secondary=route_stop_table,  backref="routes")
+    stops = db.relationship("Stop", backref="route")
 
     # paths - Path segments which this route consists of
     # TODO: implement paths
@@ -110,15 +147,15 @@ class Route(db.Model, BMModel):
     #  .. chaining into a full route path. Leaving this out for now.
 
 
-class RouteDirection(db.Model, BMModel):
+class Direction(db.Model, BMModel):
     """
     A direction of a route. "Eastbound" / "Westbound", "Inbound" / "Outbound".
     """
-    __tablename__ = "route_direction"
+    __tablename__ = "direction"
     id = db.Column(db.Integer, primary_key=True)
 
     # route_id - The agency which operates this route
-    route_id = db.Column(db.Integer, db.ForeignKey('route.id'))
+    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
 
     # tag - Unique alphanumeric identifier (a.k.a. "machine name")
     tag = db.Column(db.String, unique=True)
@@ -134,22 +171,19 @@ class Stop(db.Model, BMModel):
     """
     A stop or station. Vehicles stop here and pick up or drop off passengers.
     Sometimes the driver gets out to poop.
+    Stops are uniquely uniquely identifiable by route:stop_tag
     """
     __tablename__ = "stop"
     id = db.Column(db.Integer, primary_key=True)
 
-    # agency - The agency which operates this route
-    agency_id = db.Column(db.Integer, db.ForeignKey('agency.id'))
-    agency = db.relationship("Agency")
+    # route_id - The agency which operates this route
+    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
 
     # stop_id - Numeric ID
     # Not all routes/stops have this! Cannot be used as an effective index/lookup.
     stop_id = db.Column(db.Integer)
 
     # tag - Unique alphanumeric identifier (a.k.a. "machine name")
-    # This is NOT UNIQUE (even though it sounds like it should be), because
-    # NextBus re-uses stop tags across routes but has DIFFERENT LAT/LON for them!
-    # ...so this can't be used as an effective index/lookup for all cases.
     tag = db.Column(db.String)
 
     # title - Human-readable name for stop
@@ -170,11 +204,17 @@ class Update(db.Model, BMModel):
     id = db.Column(db.Integer, primary_key=True)
 
     # agency - Which agency this data is for
-    agency_id = db.Column(db.Integer, db.ForeignKey('agency.id'))
+    agency_id = db.Column(db.Integer, db.ForeignKey('agency.id', ondelete="cascade"))
     agency = db.relationship("Agency")
 
+    # route - Which agency this data is for
+    route_Id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
+    route = db.relationship("Route")
+
     # dataset - What data was updated
-    dataset = db.Column(db.Enum('agencies','routes', name="dataset", native_enum=False))
+    dataset = db.Column(db.Enum(
+        'agencies','routes', 'predictions',
+        name="dataset", native_enum=False))
 
     # source - Where the data came from
     source = db.Column(db.Enum('Nextbus', name="source", native_enum=False))

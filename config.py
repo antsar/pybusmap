@@ -4,9 +4,17 @@ class Config(object):
     CELERY_BROKER_URL = 'redis://'
     CELERY_RESULT_BACKEND = 'redis://'
     CELERYBEAT_SCHEDULE = {
+        'update-agencies-every-week': {
+            'task': 'celerytasks.update_agencies',
+            'schedule': timedelta(weeks=1),
+        },
         'update-routes-every-24h': {
             'task': 'celerytasks.update_routes',
             'schedule': timedelta(days=1),
+        },
+        'update-predictions-every-10s': {
+            'task': 'celerytasks.update_predictions',
+            'schedule': timedelta(seconds=10),
         },
     }
     SQLALCHEMY_TRACK_MODIFICATIONS = False
