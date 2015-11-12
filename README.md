@@ -1,6 +1,11 @@
 # BusMap.py
 BusMap is a real-time map of public transit vehicle locations. It's written in Python 3.4 with [Flask](http://flask.pocoo.org/).
 
+## Status
+
+This project is not yet in a usable state. So far it is capable of: fetching (some) data from Nextbus on regular intervals.
+That is not very useful by itself, as it just provides a local cache of Nextbus data. A front-end/UI is coming next, which will make use of the data.
+
 ## Setup
 - Install system-wide dependencies  
     `sudo apt-get install python python-pip python-virtualenv libxml2-dev libxsl-dev`
