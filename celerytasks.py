@@ -49,7 +49,10 @@ def update_predictions(agencies=None):
     if not agencies:
         agencies = app.config['AGENCIES']
     prediction_count = 0
+    route_count = 0
     for agency_tag in agencies:
         agency = db.session.query(Agency).filter_by(tag=agency_tag).one()
         prediction_count += len(Nextbus.get_predictions(agency.routes))
-    print("update_predictions: Got {0} predictions {1} agencies".format(prediction_count, len(agencies)))
+        route_count += len(agency.routes)
+    print("update_predictions: Got {0} predictions for {1} agencies ({2} routes)"\
+            .format(prediction_count, len(agencies), route_count))

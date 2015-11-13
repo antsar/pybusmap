@@ -48,7 +48,7 @@ class Agency(db.Model, BMModel):
     short_title = db.Column(db.String)
 
     # region - Geographic area (States, etc)
-    region_id = db.Column(db.Integer, db.ForeignKey('region.id'))
+    region_id = db.Column(db.Integer, db.ForeignKey('region.id', ondelete="cascade"))
     region = db.relationship("Region")
 
 
@@ -60,7 +60,7 @@ class Prediction(db.Model, BMModel):
     id = db.Column(db.Integer, primary_key=True)
 
     # route - the bus route
-    route_id = db.Column(db.Integer, db.ForeignKey('route.id'))
+    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
     route = db.relationship("Route")
 
     # prediction - the predicted time of arrival
@@ -85,6 +85,10 @@ class Prediction(db.Model, BMModel):
     # block - the vehicle's block
     block = db.Column(db.String)
 
+    # stop - where the bus is predicted to arrive
+    stop_id = db.Column(db.Integer, db.ForeignKey('stop.id'))
+    stop = db.relationship("Stop", backref="predictions")
+
 
 class Region(db.Model, BMModel):
     """
@@ -102,6 +106,9 @@ class Route(db.Model, BMModel):
     A bus route, train line, etc.
     """
     __tablename__ = "route"
+    __table_args__ = (
+        db.UniqueConstraint('tag', 'agency_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
 
     # agency - The agency which operates this route
@@ -109,7 +116,7 @@ class Route(db.Model, BMModel):
     agency = db.relationship("Agency", backref="routes")
 
     # tag - Unique alphanumeric identifier (a.k.a. "machine name")
-    tag = db.Column(db.String, unique=True)
+    tag = db.Column(db.String)
 
     # title
     title = db.Column(db.String)
@@ -141,6 +148,8 @@ class Route(db.Model, BMModel):
     # stops - Stops or stations on this route
     stops = db.relationship("Stop", backref="route")
 
+    
+
     # paths - Path segments which this route consists of
     # TODO: implement paths
     # Nextbus's paths are illustrative only and are said to be unreliable for
@@ -171,54 +180,53 @@ class Stop(db.Model, BMModel):
     """
     A stop or station. Vehicles stop here and pick up or drop off passengers.
     Sometimes the driver gets out to poop.
-    Stops are uniquely uniquely identifiable by route:stop_tag
+    Stops are uniquely uniquely identifiable by route:tag
     """
     __tablename__ = "stop"
     id = db.Column(db.Integer, primary_key=True)
 
-    # route_id - The agency which operates this route
+    # The route which this stop is a part of.
     route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
 
     # stop_id - Numeric ID
     # Not all routes/stops have this! Cannot be used as an effective index/lookup.
     stop_id = db.Column(db.Integer)
 
-    # tag - Unique alphanumeric identifier (a.k.a. "machine name")
+    # Unique alphanumeric name
     tag = db.Column(db.String)
 
-    # title - Human-readable name for stop
+    # Human-readable title
     title = db.Column(db.String)
 
-    # lat
+    # Latitude of this bus stop
     lat = db.Column(db.Float)
 
-    # lon
+    # Longitude of this bus stop
     lon = db.Column(db.Float)
 
 
-class Update(db.Model, BMModel):
+class ApiCall(db.Model, BMModel):
     """
-    An event when data was updated from a source
+    A retrieval of data from a data source.
     """
-    __tablename__ = "update"
+    __tablename__ = "api_call"
     id = db.Column(db.Integer, primary_key=True)
 
-    # agency - Which agency this data is for
-    agency_id = db.Column(db.Integer, db.ForeignKey('agency.id', ondelete="cascade"))
-    agency = db.relationship("Agency")
+    # Full URL of request
+    url = db.Column(db.String)
 
-    # route - Which agency this data is for
-    route_Id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
-    route = db.relationship("Route")
+    # Size of the dataset in bytes
+    size = db.Column(db.Integer)
 
-    # dataset - What data was updated
-    dataset = db.Column(db.Enum(
-        'agencies','routes', 'predictions',
-        name="dataset", native_enum=False))
+    # HTTP response code
+    status = db.Column(db.Integer)
 
-    # source - Where the data came from
-    source = db.Column(db.Enum('Nextbus', name="source", native_enum=False))
+    # Any error text returned by the API
+    error = db.Column(db.String)
 
-    # time - When it was updated
+    # Where the data came from
+    source = db.Column(db.Enum('Nextbus', name="source", native_enum=False), default='Nextbus')
+
+    # When this data was fetched
     time = db.Column(db.DateTime, default=datetime.now)
 
