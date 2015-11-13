@@ -197,6 +197,13 @@ class Nextbus():
         Get vehicle arrival predictions
         request parameter 'stops' is actually a list of "route|stop" pairs
         """
+        if truncate:
+            db.session.query(Prediction)\
+                .filter(
+                    Prediction.route_id.in_(
+                        [r.id for r in routes]
+                    ))\
+                .delete(synchronize_session='fetch')
         all_stops = {}
         for route in routes:
             for s in route.stops:
@@ -218,14 +225,7 @@ class Nextbus():
                 }
                 prediction_sets, api_call = cls.request(request_params, 'predictions')
                 if not prediction_sets:
-                    return []
-                if truncate:
-                    db.session.query(Prediction)\
-                        .filter(
-                            Prediction.route_id.in_(
-                                [r.id for r in routes]
-                            ))\
-                        .delete(synchronize_session='fetch')
+                    continue
                 for prediction_set in prediction_sets:
                     route_tag = prediction_set.get('routeTag')
                     route = db.session.query(Route).join(Agency)\
