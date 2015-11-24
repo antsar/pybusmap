@@ -7,11 +7,6 @@ from random import random
 r = redis.StrictRedis()
 
 class Lock():
-    """
-    A way to prevent things from happening concurrently.
-    Synchronization is bad! Use at your own risk.
-    """
-
     def __init__(cls, key, shared=False, expires=25, timeout=30, step=0.5):
         """
         A lock mechanism, using Redis as a backend.
