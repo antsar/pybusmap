@@ -3,21 +3,27 @@ class Config(object):
     SECRET_KEY = 'OVERRIDE THIS WITH A SECURE VALUE in instance/config.py!'
     CELERY_BROKER_URL = 'redis://'
     CELERY_RESULT_BACKEND = 'redis://'
+    CELERY_ACCEPT_CONTENT = ['pickle']
     CELERYBEAT_SCHEDULE = {
         'update-agencies-every-week': {
             'task': 'celerytasks.update_agencies',
-            'schedule': timedelta(weeks=1),
+            'schedule': timedelta(days=7),
         },
         'update-routes-every-24h': {
             'task': 'celerytasks.update_routes',
-            'schedule': timedelta(days=1),
+            'schedule': timedelta(hours=24),
         },
-        'update-predictions-every-10s': {
+        'update-predictions-every-6s': {
             'task': 'celerytasks.update_predictions',
-            'schedule': timedelta(seconds=10),
+            'schedule': timedelta(seconds=6),
+        },
+        'delete-stale-predictions-every-5m': {
+            'task': 'celerytasks.delete_stale_predictions',
+            'schedule': timedelta(minutes=5),
         },
     }
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    PREDICTIONS_MAX_AGE = 5 * 60;
     AGENCIES = ["SAMPLE_AGENCY"]
 
 class ProdConfig(Config):

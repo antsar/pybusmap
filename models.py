@@ -2,9 +2,10 @@ from sqlalchemy.sql.expression import ClauseElement
 from flask.ext.sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import  NoResultFound
+from sqlalchemy.dialects import postgresql
 from datetime import datetime
 
-db = SQLAlchemy()
+db = SQLAlchemy(session_options={'autocommit': True})
 
 class BMModel():
     """
@@ -27,7 +28,6 @@ class BMModel():
             kwargs.update(create_method_kwargs or {})
             new = getattr(cls, create_method, cls)(**kwargs)
             session.add(new)
-            session.flush()
             return new
 
 
@@ -50,6 +50,10 @@ class Agency(db.Model, BMModel):
     # region - Geographic area (States, etc)
     region_id = db.Column(db.Integer, db.ForeignKey('region.id', ondelete="cascade"))
     region = db.relationship("Region")
+
+    # API Request which was used to retrieve this data
+    api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
+    api_call = db.relationship("ApiCall", backref="agencies")
 
 
 class Prediction(db.Model, BMModel):
@@ -76,7 +80,7 @@ class Prediction(db.Model, BMModel):
     has_layover  = db.Column(db.Boolean)
 
     # direction - Direction for this prediction
-    direction_id = db.Column(db.Integer, db.ForeignKey('direction.id'))
+    direction_id = db.Column(db.Integer, db.ForeignKey('direction.id', ondelete="cascade"))
     direction = db.relationship("Direction")
 
     # vehicle - Bus ID (not always numeric)
@@ -89,6 +93,10 @@ class Prediction(db.Model, BMModel):
     stop_id = db.Column(db.Integer, db.ForeignKey('stop.id'))
     stop = db.relationship("Stop", backref="predictions")
 
+    # API Request which was used to retrieve this data
+    api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
+    api_call = db.relationship("ApiCall", backref="predictions")
+
 
 class Region(db.Model, BMModel):
     """
@@ -99,6 +107,10 @@ class Region(db.Model, BMModel):
 
     # title - Region title
     title = db.Column(db.String, unique=True)
+
+    # API Request which was used to retrieve this data
+    api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
+    api_call = db.relationship("ApiCall", backref="regions")
 
 
 class Route(db.Model, BMModel):
@@ -148,12 +160,17 @@ class Route(db.Model, BMModel):
     # stops - Stops or stations on this route
     stops = db.relationship("Stop", backref="route")
 
-    
+    # vehicleLocations - Locations of vehicles on this route.
+    vehicle_locations = db.relationship("VehicleLocation", backref="route")
 
     # paths - Path segments which this route consists of
     # TODO: implement paths
     # Nextbus's paths are illustrative only and are said to be unreliable for
     #  .. chaining into a full route path. Leaving this out for now.
+
+    # API Request which was used to retrieve this data
+    api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
+    api_call = db.relationship("ApiCall", backref="routes")
 
 
 class Direction(db.Model, BMModel):
@@ -161,19 +178,26 @@ class Direction(db.Model, BMModel):
     A direction of a route. "Eastbound" / "Westbound", "Inbound" / "Outbound".
     """
     __tablename__ = "direction"
+    __table_args__ = (
+        db.UniqueConstraint('tag', 'route_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
 
     # route_id - The agency which operates this route
     route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
 
     # tag - Unique alphanumeric identifier (a.k.a. "machine name")
-    tag = db.Column(db.String, unique=True)
+    tag = db.Column(db.String)
 
     # title
     title = db.Column(db.String)
 
     # name = A simplified/normalized name (for indexing; some routes may share this)
     name= db.Column(db.String)
+
+    # API Request which was used to retrieve this data
+    api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
+    api_call = db.relationship("ApiCall", backref="directions")
 
 
 class Stop(db.Model, BMModel):
@@ -183,13 +207,16 @@ class Stop(db.Model, BMModel):
     Stops are uniquely uniquely identifiable by route:tag
     """
     __tablename__ = "stop"
+    __table_args__ = (
+        db.UniqueConstraint('tag', 'route_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
 
     # The route which this stop is a part of.
     route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
 
     # stop_id - Numeric ID
-    # Not all routes/stops have this! Cannot be used as an effective index/lookup.
+    # Not all routes/stops have this! Cannot be used as an index/lookup.
     stop_id = db.Column(db.Integer)
 
     # Unique alphanumeric name
@@ -204,6 +231,50 @@ class Stop(db.Model, BMModel):
     # Longitude of this bus stop
     lon = db.Column(db.Float)
 
+    # API Request which was used to retrieve this data
+    api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
+    api_call = db.relationship("ApiCall", backref="stops")
+
+
+class VehicleLocation(db.Model, BMModel):
+    """
+    A vehicle geolocation for a specific time.
+    """
+    __tablename__ = "vehicle_location"
+    id = db.Column(db.Integer, primary_key=True)
+
+    # vehicle - Bus ID (not always numeric)
+    vehicle = db.Column(db.String)
+
+    # The route which this vehicle is serving
+    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
+
+    # direction - Direction for this prediction
+    direction_id = db.Column(db.Integer, db.ForeignKey('direction.id', ondelete="cascade"))
+    direction = db.relationship("Direction")
+
+    # Latitude of this vehicle
+    lat = db.Column(db.Float)
+
+    # Longitude of this vehicle
+    lon = db.Column(db.Float)
+
+    # When this location was recorded
+    time = db.Column(db.DateTime, default=datetime.now)
+
+    # Whether this vehicle is currently "predictable"
+    predictable = db.Column(db.Boolean)
+
+    # Vehicle heading in degrees (0-360).
+    heading = db.Column(db.Integer)
+
+    # speed in Kilometers per hour
+    speed = db.Column(db.Float)
+
+    # API Request which was used to retrieve this data
+    api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
+    api_call = db.relationship("ApiCall", backref="vehicle_locations")
+
 
 class ApiCall(db.Model, BMModel):
     """
@@ -216,7 +287,7 @@ class ApiCall(db.Model, BMModel):
     url = db.Column(db.String)
 
     # Size of the dataset in bytes
-    size = db.Column(db.Integer)
+    size = db.Column(db.Integer, default=0)
 
     # HTTP response code
     status = db.Column(db.Integer)
@@ -230,3 +301,5 @@ class ApiCall(db.Model, BMModel):
     # When this data was fetched
     time = db.Column(db.DateTime, default=datetime.now)
 
+    # Parameters (request variables) of this API call
+    params = db.Column(postgresql.JSON)

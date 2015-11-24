@@ -34,3 +34,6 @@ pip-delete-this-directory.txt
 
 # Celery
 celerybeat-schedule.db
+
+# Kernprof
+*.lprof
