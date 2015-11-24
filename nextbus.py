@@ -259,6 +259,7 @@ class Nextbus():
                     }
                     requests.append((request_params, 'route'))
             responses = cls.async_request(requests)
+            db.session.begin()
             for rc_xml, rc_api_call in responses:
                 r = save_route(rc_xml[0], rc_api_call)
                 routes.append(r)
@@ -431,7 +432,7 @@ class Nextbus():
         Delete vehicle locations older than LOCATIONS_MAX_AGE.
         """
         expire = datetime.now() - timedelta(seconds=app.config['LOCATIONS_MAX_AGE'])
-        delete = db.session.query(Prediction)\
+        delete = db.session.query(VehicleLocation)\
                     .filter(VehicleLocation.time < expire)\
                     .delete(synchronize_session=False)
         return delete
