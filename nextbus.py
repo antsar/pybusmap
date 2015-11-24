@@ -3,7 +3,7 @@ from lxml import etree
 import json
 import time
 from datetime import datetime, timedelta
-from models import Agency, ApiCall, Direction, Prediction, Region, Route, Stop
+from models import Agency, ApiCall, Direction, Prediction, Region, Route, Stop, VehicleLocation
 from app import app, db
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import NoResultFound
@@ -85,6 +85,7 @@ class Nextbus():
         """
         fs = FuturesSession(max_workers=cls.api_limits['max_concurrent_requests'])
         futures = []
+        api_calls = []
         # Start parallel requests
         for (params, tagName) in requests:
             url = "{0}?{1}".format(cls.api_url,
@@ -110,7 +111,7 @@ class Nextbus():
                 error = error.text if error is not None else None if response else "Connection Error",
                 source = 'Nextbus'
             )
-            db.session.add(api_call)
+            api_calls.append(api_call)
             # Handle API error
             if error is not None:
                 should_retry = error.get('shouldRetry')
@@ -122,6 +123,9 @@ class Nextbus():
                 results.append((None, api_call))
             else:
                 results.append((tree.findall(tagName), api_call))
+        for ac in api_calls:
+            db.session.add(ac)
+        db.session.commit()
         return results
 
     @classmethod
@@ -341,54 +345,71 @@ class Nextbus():
                                 'block': prediction.get('block'),
                                 'api_call_id': api_call.id}
                             predictions.append(p_params)
+            db.session.begin()
             db.engine.execute(Prediction.__table__.insert(), predictions)
             db.session.commit()
             return predictions
 
     @classmethod
-    def get_vehicle_locations(cls, route_tags, truncate=True):
+    def get_vehicle_locations(cls, routes, truncate=True):
         """
         Get vehicle GPS locations
         """
         with Lock("agencies", shared=True), Lock("routes", shared=True):
             db.session.begin()
-            routes = [r for r in db.session.query(Route)\
-                        .filter(Route.tag.in_(route_tag)).all()]
+            # Re-do this query inside the transaction, in case routes went poof in the meantime.
+            # This is probably dumb but I don't have a cleaner solution in mind for now...
+            # caveat: if routes were updated, get_predictions will silently fail (return nothing)
+            routes = db.session.query(Route)\
+                .options(joinedload('directions'))\
+                .filter(Route.id.in_([r.id for r in routes])).all()
+            most_recent = db.session.query(VehicleLocation.route_id,
+                            db.func.max(ApiCall.time))\
+                    .join(ApiCall)\
+                    .filter(
+                        VehicleLocation.route_id.in_([r.id for r in routes]))\
+                    .group_by(VehicleLocation.route_id).all()
+            last_time = {}
+            for route_id, mr_time in most_recent:
+                last_time[route_id] = mr_time
+            requests = []
             for route in routes:
+                t = last_time[route.id].timestamp() if route.id in last_time else 0
                 request_params = {
                     'command': 'vehicleLocations',
                     'a': route.agency.tag,
-                    'r': route.tag
-                    # TODO: add 't' parameter with last timestamp
-                    # (find last timestamp by getting last relevant ApiCall)
-                    # MAX: 5 min span
-                    #'t': last_time
+                    'r': route.tag,
+                    't': t
                 }
-                vehicles, api_call = cls.request(request_params, 'vehicles')
-                vehicle_locations = []
+                requests.append((request_params, 'vehicle'))
+            responses = cls.async_request(requests)
+            vehicle_locations = []
+            for (vehicles, api_call) in responses:
+                if not vehicles:
+                    continue
                 for vehicle in vehicles:
                     # Convert age in seconds to a DateTime
-                    time = datetime.now() - timedelta(secs=vehicle.get('secsSinceReport'))
+                    age = timedelta(seconds=int(vehicle.get('secsSinceReport')))
+                    time = datetime.now() - age
                     # Convert negative heading to None, as per API docs
-                    heading = vehicle.get('heading')
+                    heading = int(vehicle.get('heading'))
                     if heading < 0:
                         heading = None
-                    # dirTag to Direction
-                    direction = db.session.query(Direction)\
-                        .filter_by(tag=vehicle.get('dirTag')).one()
+                    direction = next((d for d in route.directions if d.tag == vehicle.get('dirTag')), None)
                     # Save it all
-                    vl = VehicleLocation.get_or_create(db.session,
-                        vehicle = vehicle.get('id'),
-                        route = route,
-                        direction = direction,
-                        lat = vehicle.get('lat'),
-                        lon = vehicle.get('lon'),
-                        time = time,
-                        predictable = vehicle.get('predictable'),
-                        heading = heading,
-                        speed = vehicle.get('speedKmHr'),
-                        api_call = api_call)
+                    vl = {'vehicle': vehicle.get('id'),
+                        'route_id': route.id,
+                        'direction_id': direction.id if direction else None,
+                        'lat': vehicle.get('lat'),
+                        'lon': vehicle.get('lon'),
+                        'time': time,
+                        'predictable': vehicle.get('predictable'),
+                        'heading': heading,
+                        'speed': float(vehicle.get('speedKmHr')),
+                        'api_call_id': api_call.id}
                     vehicle_locations.append(vl)
+            db.session.begin()
+            db.engine.execute(VehicleLocation.__table__.insert(), vehicle_locations)
             db.session.commit()
             return vehicle_locations
 
@@ -400,6 +421,17 @@ class Nextbus():
         expire = datetime.now() - timedelta(seconds=app.config['PREDICTIONS_MAX_AGE'])
         delete = db.session.query(Prediction)\
                     .filter(Prediction.created < expire)\
+                    .delete()
+        return delete
+
+    @classmethod
+    def delete_stale_vehicle_locations(cls):
+        """
+        Delete vehicle locations older than LOCATIONS_MAX_AGE.
+        """
+        expire = datetime.now() - timedelta(seconds=app.config['LOCATIONS_MAX_AGE'])
+        delete = db.session.query(Prediction)\
+                    .filter(VehicleLocation.created < expire)\
                     .delete()
         return delete
 

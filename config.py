@@ -13,17 +13,26 @@ class Config(object):
             'task': 'celerytasks.update_routes',
             'schedule': timedelta(hours=24),
         },
-        'update-predictions-every-6s': {
+        'update-predictions-every-9s': {
             'task': 'celerytasks.update_predictions',
-            'schedule': timedelta(seconds=6),
+            'schedule': timedelta(seconds=9),
+        },
+        'update-vehicle-locations-every-4s': {
+            'task': 'celerytasks.update_vehicle_locations',
+            'schedule': timedelta(seconds=4),
         },
         'delete-stale-predictions-every-5m': {
             'task': 'celerytasks.delete_stale_predictions',
             'schedule': timedelta(minutes=5),
         },
+        'delete-stale-vehicle-locations-every-5m': {
+            'task': 'celerytasks.delete_stale_vehicle_locations',
+            'schedule': timedelta(minutes=5),
+        },
     }
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     PREDICTIONS_MAX_AGE = 5 * 60;
+    LOCATIONS_MAX_AGE = 5 * 60;
     AGENCIES = ["SAMPLE_AGENCY"]
 
 class ProdConfig(Config):

@@ -1,8 +1,9 @@
 from celery.utils.log import get_task_logger
 from flask.ext.celery import Celery
 from datetime import datetime, timedelta
+import time
 from app import app, db
-from models import Prediction
+from models import Agency, Prediction
 from nextbus import Nextbus
 
 """
@@ -41,7 +42,6 @@ def update_routes(agencies=None):
     """
     Refresh our list of Routes, Stops, and Directions from Nextbus
     """
-    from models import Agency
     if not agencies:
         agencies = app.config['AGENCIES']
     route_count = 0
@@ -55,8 +55,6 @@ def update_predictions(agencies=None):
     """
     Get the latest vehicle arrival predictions from Nextbus
     """
-    from models import Agency
-    import time
     start = time.time()
     if not agencies:
         agencies = app.config['AGENCIES']
@@ -67,19 +65,29 @@ def update_predictions(agencies=None):
         prediction_count += len(Nextbus.get_predictions(agency.routes, truncate=False))
         route_count += len(agency.routes)
     elapsed = time.time() - start
-    print("update_predictions: Got {0} predictions for {1} agencies ({2} routes) in {3:0.2f} sec."\
+    print("Got {0} predictions for {1} agencies ({2} routes) in {3:0.2f} sec."\
           .format(prediction_count, len(agencies), route_count, elapsed))
 
 @celery.task()
-def update_vehicles(agencies=None):
+def update_vehicle_locations(agencies=None):
     """
     Get the latest vehicle locations (coords/speed/heading) from NextBus
     """
-    from models import Agency
+    start = time.time()
     if not agencies:
         agencies = app.config['AGENCIES']
-    vehicle_count = 0
+    if not agencies:
+        agencies = app.config['AGENCIES']
+    agencies = db.session.query(Agency).filter(Agency.tag.in_(agencies)).all()
+    vl_count = 0
     route_count = 0
+    for agency in agencies:
+        vl_count += len(Nextbus.get_vehicle_locations(agency.routes, truncate=False))
+        route_count += len(agency.routes)
+    elapsed = time.time() - start
+    print("Got {0} vehicle locations for {1} agencies ({2} routes) in {3:0.2f} seconds."\
+          .format(vl_count, len(agencies), route_count, elapsed))
+
 
 @celery.task()
 def delete_stale_predictions():
@@ -88,3 +96,11 @@ def delete_stale_predictions():
     """
     delete = Nextbus.delete_stale_predictions()
     print("{0} stale predictions deleted".format(delete))
+
+@celery.task()
+def delete_stale_vehicle_locations():
+    """
+    Delete vehicle locations older than LOCATIONS_MAX_AGE.
+    """
+    delete = Nextbus.delete_stale_vehicle_locations()
+    print("{0} stale vehicle locations deleted".format(delete))

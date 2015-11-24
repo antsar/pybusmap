@@ -50,6 +50,31 @@ def update_predictions(loop=False,agencies=None):
         do_it(agencies)
 
 @manager.command
+def update_vehicle_locations(loop=False,agencies=None):
+    def do_it(agencies):
+        from nextbus import Nextbus
+        from models import Agency
+        start = time.time()
+        if agencies:
+            agencies = agencies.split(",")
+        if not agencies:
+            agencies = app.config['AGENCIES']
+        agencies = db.session.query(Agency).filter(Agency.tag.in_(agencies)).all()
+        vl_count = 0
+        route_count = 0
+        for agency in agencies:
+            vl_count += len(Nextbus.get_vehicle_locations(agency.routes, truncate=False))
+            route_count += len(agency.routes)
+        elapsed = time.time() - start
+        print("Got {0} vehicle locations for {1} agencies ({2} routes) in {3:0.2f} seconds."\
+              .format(vl_count, len(agencies), route_count, elapsed))
+    if loop:
+        while True:
+            do_it(agencies)
+    else:
+        do_it(agencies)
+
+@manager.command
 def api_quota(tail=False):
     """
     Check the API quota balance.
