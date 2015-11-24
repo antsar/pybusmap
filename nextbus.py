@@ -379,7 +379,7 @@ class Nextbus():
                     'command': 'vehicleLocations',
                     'a': route.agency.tag,
                     'r': route.tag,
-                    't': t
+                    't': int(t)
                 }
                 requests.append((request_params, 'vehicle'))
             responses = cls.async_request(requests)
@@ -422,7 +422,7 @@ class Nextbus():
         expire = datetime.now() - timedelta(seconds=app.config['PREDICTIONS_MAX_AGE'])
         delete = db.session.query(Prediction)\
                     .filter(Prediction.created < expire)\
-                    .delete()
+                    .delete(synchronize_session=False)
         return delete
 
     @classmethod
@@ -433,7 +433,7 @@ class Nextbus():
         expire = datetime.now() - timedelta(seconds=app.config['LOCATIONS_MAX_AGE'])
         delete = db.session.query(Prediction)\
                     .filter(VehicleLocation.time < expire)\
-                    .delete()
+                    .delete(synchronize_session=False)
         return delete
 
 class NextbusException(Exception):
