@@ -388,6 +388,7 @@ class Nextbus():
                 if not vehicles:
                     continue
                 for vehicle in vehicles:
+                    route = next((r for r in routes if r.tag == vehicle.get('routeTag')), None)
                     # Convert age in seconds to a DateTime
                     age = timedelta(seconds=int(vehicle.get('secsSinceReport')))
                     time = datetime.now() - age
@@ -431,7 +432,7 @@ class Nextbus():
         """
         expire = datetime.now() - timedelta(seconds=app.config['LOCATIONS_MAX_AGE'])
         delete = db.session.query(Prediction)\
-                    .filter(VehicleLocation.created < expire)\
+                    .filter(VehicleLocation.time < expire)\
                     .delete()
         return delete
 
