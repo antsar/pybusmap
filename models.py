@@ -1,6 +1,7 @@
 from sqlalchemy.sql.expression import ClauseElement
 from flask.ext.sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.orm.exc import  NoResultFound
 from sqlalchemy.dialects import postgresql
 from datetime import datetime
@@ -158,7 +159,7 @@ class Route(db.Model, BMModel):
     directions = db.relationship("Direction", backref="route")
 
     # stops - Stops or stations on this route
-    stops = db.relationship("Stop", backref="route")
+    stops = db.relationship("Stop", backref="route", lazy="subquery", collection_class=attribute_mapped_collection("tag"))
 
     # vehicleLocations - Locations of vehicles on this route.
     vehicle_locations = db.relationship("VehicleLocation", backref="route")
@@ -219,7 +220,7 @@ class Stop(db.Model, BMModel):
     # Not all routes/stops have this! Cannot be used as an index/lookup.
     stop_id = db.Column(db.Integer)
 
-    # Unique alphanumeric name
+    # Alphanumeric name (unique with route_id)
     tag = db.Column(db.String)
 
     # Human-readable title

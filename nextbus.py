@@ -33,6 +33,16 @@ class Nextbus():
         'max_concurrent_requests': 50,
     }
 
+    def _xml_to_tree(xml_string):
+        """
+        Convert an XML string to a navigable tree.
+        """
+        try:
+            xmlroot = etree.fromstring(xml_string)
+        except:
+            raise(NextbusException("Unparseable XML received.\n{0}".format(xml_string)))
+        return etree.ElementTree(xmlroot)
+
     @classmethod
     def request(cls, params, tagName):
         """
@@ -51,8 +61,7 @@ class Nextbus():
         except ConnectionError:
             pass
         if response and response.status_code == 200:
-            xmlroot = etree.fromstring(response.content)
-            tree = etree.ElementTree(xmlroot)
+            tree = cls._xml_to_tree(response.content)
             error = tree.find('Error')
         # Log the request
         api_call = ApiCall(
@@ -98,8 +107,7 @@ class Nextbus():
             error = None
             response = f.result()
             if response and response.status_code == 200:
-                xmlroot = etree.fromstring(response.content)
-                tree = etree.ElementTree(xmlroot)
+                tree = cls._xml_to_tree(response.content)
                 error = tree.find('Error')
             # Log the request
             api_call = ApiCall(
@@ -280,7 +288,6 @@ class Nextbus():
             # This is probably dumb but I don't have a cleaner solution in mind for now...
             # caveat: if routes were updated, get_predictions will silently fail (return nothing)
             routes = db.session.query(Route)\
-                .options(joinedload('stops'), joinedload('directions'))\
                 .filter(Route.id.in_([r.id for r in routes])).all()
             routes = {(r.agency.tag, r.tag): r for r in routes}
             if truncate:
@@ -295,9 +302,9 @@ class Nextbus():
             for (a_tag, r_tag) in routes:
                 route = routes[(a_tag, r_tag)]
                 for s in route.stops:
-                    if s.route.agency.tag not in all_stops:
-                        all_stops[s.route.agency.tag] = []
-                    all_stops[s.route.agency.tag].append("{0}|{1}".format(s.route.tag, s.tag))
+                    if route.agency.tag not in all_stops:
+                        all_stops[route.agency.tag] = []
+                    all_stops[route.agency.tag].append("{0}|{1}".format(route.tag, s))
             requests = []
             predictions = []
             # Break this up by agency, since agency tag is a request param.
@@ -323,9 +330,9 @@ class Nextbus():
                     route = routes[(agency_tag, route_tag)]
                     stop_tag = prediction_set.get('stopTag')
                     try:
-                        stop = next(s for s in route.stops if s.tag == stop_tag)
-                    except StopIteration:
-                        raise(Exception("Non-existent stop '{0}' for agency '{1}' route '{2}'"\
+                        stop = route.stops[stop_tag]
+                    except KeyError:
+                        raise(NextbusException("Non-existent stop '{0}' for agency '{1}' route '{2}'"\
                             .format(stop_tag, route.agency.tag, route.tag)))
                     for direction in prediction_set.findall('direction'):
                         xml_predictions = direction.findall('prediction')
@@ -390,6 +397,10 @@ class Nextbus():
                     continue
                 for vehicle in vehicles:
                     route = next((r for r in routes if r.tag == vehicle.get('routeTag')), None)
+                    if not route:
+                        raise(NextbusException(\
+                            "Not a real route tag: {0} (for vehicle {1})"
+                            .format(vehicle.get('routeTag'), vehicle)))
                     # Convert age in seconds to a DateTime
                     age = timedelta(seconds=int(vehicle.get('secsSinceReport')))
                     time = datetime.now() - age
