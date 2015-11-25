@@ -1,5 +1,6 @@
 import os
-from flask import Flask
+from flask import Flask, render_template
+from flask.ext.bower import Bower
 from models import db
 import models
 
@@ -15,9 +16,12 @@ app.config.from_pyfile('config.py', silent=True)
 # Database init
 db.init_app(app)
 
+Bower(app)
+
+# Flask Web Routes
 @app.route('/')
-def just_testing():
-    return str("Hello World!")
+def map():
+    return render_template('map.html')
 
 if __name__ == '__main__':
     # Run Flask

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Bus Map{% endblock %}
+{% block head %}
+    {{ super() }}
+    <link href="bower/leaflet/dist/leaflet.css" rel="stylesheet"/>
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            border: 0;
+            margin: 0;
+            padding: 0;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+{% endblock %}
+{% block body %}
+    <div id="map"></div>
+    <script src="bower/leaflet/dist/leaflet.js"></script>
+    <script>
+        var mapDivId = "map";
+        var zoom = 14;
+        var center = [40.5, -74.45];
+        var mapOptions = {
+            minZoom: 14,
+            maxZoom: 18,
+            zoomControl: false,
+        };
+        var bounds = [
+            [40.400, -74.65], // sw
+            [40.600, -74.25], // ne
+        ];
+        var boundsOptions = {
+            animate: false,
+            reset: true,
+        };
+        var osm = "<a href=\"http://openstreetmap.org\">OpenStreetMap</a>";
+        var tileUrl = 'http://{s}.tiles.antsar-static.com/{tileset}/{z}/{x}/{y}.png';
+        var tileOptions = {
+            subdomains: ['a', 'b', 'c', 'd', 'e'],
+            attribution: '&copy; ' + osm + ' Contributors',
+            tileset: 'rutgers-black',
+            errorTileUrl: 'http://tiles.antsar-static.com/generic/tile-blank-black.png',
+        };
+        var map = L.map(mapDivId, mapOptions)
+            .setView(center, zoom)
+            .setMaxBounds(bounds, boundsOptions);
+        L.tileLayer(tileUrl, tileOptions).addTo(map);
+    </script>
+{% endblock %}
