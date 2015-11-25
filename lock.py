@@ -4,8 +4,6 @@ import os
 from time import sleep, time
 from random import random
 
-r = redis.StrictRedis()
-
 class Lock():
     def __init__(cls, key, shared=False, expires=25, timeout=30, step=0.5):
         """
@@ -21,6 +19,8 @@ class Lock():
         If an exclusive lock is set, new shared lock attempts will wait (block).
         Similarly, exclusive locks will wait (block) until all shared locks to clear.
         """
+
+        cls.r = redis.StrictRedis()
 
         cls.exclusive_key = "bm-lock-x-{0}".format(key)
         cls.shared_key = "bm-lock-s-{0}".format(key)
@@ -41,7 +41,7 @@ class Lock():
             cls.expires = time() + cls.expires + 1
             if cls.shared:
                 # Make sure nobody has exclusive, but don't take it.
-                if not r.get(cls.exclusive_key):
+                if not cls.r.get(cls.exclusive_key):
                     # Nobody has exclusive. Get our shared lock
                     cls._set_shared()
                     return
@@ -52,11 +52,11 @@ class Lock():
                     cls._wait_for_shared()
                     return
             # Lock not aquired! Check for stale exclusive lock
-            oldlock = r.get(cls.exclusive_key)
+            oldlock = cls.r.get(cls.exclusive_key)
             (existing_expires, existing_pid) = pickle.loads(oldlock)
             if existing_expires and float(existing_expires) < time():
                 # Stale Exc Lock found. Delete it.
-                r.delete(cls.exclusive_key)
+                cls.r.delete(cls.exclusive_key)
             # Tick and repeat until timeout.
             if existing_expires:
                 remaining = existing_expires - time()
@@ -70,31 +70,31 @@ class Lock():
         Release the lock.
         """
         if cls.shared:
-            r.lrem(cls.shared_key, 0, pickle.dumps((cls.expires, cls.pid)))
+            cls.r.lrem(cls.shared_key, 0, pickle.dumps((cls.expires, cls.pid)))
         else:
-            r.delete(cls.exclusive_key)
+            cls.r.delete(cls.exclusive_key)
 
     def _set_shared(cls):
         """
         Set a shared lock
         """
-        return r.lpush(cls.shared_key, pickle.dumps((cls.expires, cls.pid)))
+        return cls.r.lpush(cls.shared_key, pickle.dumps((cls.expires, cls.pid)))
 
     def _set_exclusive(cls):
         """
         Set an exclusive lock
         """
-        return r.setnx(cls.exclusive_key, pickle.dumps((cls.expires,cls.pid)))
+        return cls.r.setnx(cls.exclusive_key, pickle.dumps((cls.expires,cls.pid)))
 
     def _wait_for_shared(cls):
-        while r.llen(cls.shared_key) > 0 and cls.timeout >= 0:
-            for sk in r.lrange(cls.shared_key, 0, -1):
+        while cls.r.llen(cls.shared_key) > 0 and cls.timeout >= 0:
+            for sk in cls.r.lrange(cls.shared_key, 0, -1):
                 (cls.expires, cls.pid) = pickle.loads(sk)
                 if float(cls.expires) < time():
-                    r.lrem(cls.shared_key, 0, pickle.dumps((cls.expires, cls.pid)))
+                    cls.r.lrem(cls.shared_key, 0, pickle.dumps((cls.expires, cls.pid)))
                 cls.timeout -= cls.step
                 sleep(cls.step)
-        if r.llen(cls.shared_key) == 0:
+        if cls.r.llen(cls.shared_key) == 0:
             return
         else:
             raise(LockException("Shared locks still present: {0}".format(cls.shared_key)))
