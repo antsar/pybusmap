@@ -397,10 +397,10 @@ class Nextbus():
                     continue
                 for vehicle in vehicles:
                     route = next((r for r in routes if r.tag == vehicle.get('routeTag')), None)
-                    if not route:
-                        raise(NextbusException(\
-                            "Not a real route tag: {0} (for vehicle {1})"
-                            .format(vehicle.get('routeTag'), vehicle)))
+                    if route:
+                        direction = next((d for d in route.directions if d.tag == vehicle.get('dirTag')), None)
+                    else:
+                        direction = None
                     # Convert age in seconds to a DateTime
                     age = timedelta(seconds=int(vehicle.get('secsSinceReport')))
                     time = datetime.now() - age
@@ -408,10 +408,9 @@ class Nextbus():
                     heading = int(vehicle.get('heading'))
                     if heading < 0:
                         heading = None
-                    direction = next((d for d in route.directions if d.tag == vehicle.get('dirTag')), None)
                     # Save it all
                     vl = {'vehicle': vehicle.get('id'),
-                        'route_id': route.id,
+                        'route_id': route.id if route else None,
                         'direction_id': direction.id if direction else None,
                         'lat': vehicle.get('lat'),
                         'lon': vehicle.get('lon'),
