@@ -34,15 +34,10 @@ def update_predictions(loop=False,agencies=None):
             agencies = agencies.split(",")
         if not agencies:
             agencies = app.config['AGENCIES']
-        agencies = db.session.query(Agency).filter(Agency.tag.in_(agencies)).all()
-        prediction_count = 0
-        route_count = 0
-        for agency in agencies:
-            prediction_count += len(Nextbus.get_predictions(agency.routes, truncate=False))
-            route_count += len(agency.routes)
+        prediction_count = len(Nextbus.get_predictions(agencies, truncate=False))
         elapsed = time.time() - start
-        print("Got {0} predictions for {1} agencies ({2} routes) in {3:0.2f} seconds."\
-              .format(prediction_count, len(agencies), route_count, elapsed))
+        print("Got {0} predictions for {1} agencies in {2:0.2f} seconds."\
+              .format(prediction_count, len(agencies), elapsed))
     if loop:
         while True:
             do_it(agencies)
@@ -90,7 +85,7 @@ def api_quota(tail=False):
                 time.sleep(0.25)
         except KeyboardInterrupt:
             print("")
-            sys,exit()
+            sys.exit()
     else:
         remaining_mb = Nextbus.remaining_quota() / 1024**2
         print("Nextbus Quota: {0:.3f} MB remaining.".format(remaining_mb))

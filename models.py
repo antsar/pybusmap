@@ -156,10 +156,10 @@ class Route(db.Model, BMModel):
     lon_max = db.Column(db.Float)
 
     # directions - "Eastbound" / "Westbound", "Inbound" / "Outbound".
-    directions = db.relationship("Direction", backref="route")
+    directions = db.relationship("Direction", backref="route", lazy="joined")
 
     # stops - Stops or stations on this route
-    stops = db.relationship("Stop", backref="route", lazy="subquery", collection_class=attribute_mapped_collection("tag"))
+    stops = db.relationship("Stop", backref="route", lazy="joined", collection_class=attribute_mapped_collection("tag"))
 
     # vehicleLocations - Locations of vehicles on this route.
     vehicle_locations = db.relationship("VehicleLocation", backref="route")

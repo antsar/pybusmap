@@ -102,6 +102,7 @@ class Nextbus():
             futures.append((fs.get(url), params))
         # Handle results as they are available
         results = []
+        db.session.begin(nested=True)
         for (f, params) in futures:
             # These are blocking, so will stop if one isnt available yet. Poop.
             error = None
@@ -119,6 +120,7 @@ class Nextbus():
                 error = error.text if error is not None else None if response else "Connection Error",
                 source = 'Nextbus'
             )
+            db.session.add(api_call)
             api_calls.append(api_call)
             # Handle API error
             if error is not None:
@@ -131,8 +133,6 @@ class Nextbus():
                 results.append((None, api_call))
             else:
                 results.append((tree.findall(tagName), api_call))
-        for ac in api_calls:
-            db.session.add(ac)
         db.session.commit()
         return results
 
@@ -211,7 +211,7 @@ class Nextbus():
                             lon = stop.get('lon'),
                             stop_id = stop.get('stopId'),
                             api_call = api_call)
-                        route_obj.stops.append(s)
+                        route_obj.stops[s.tag] = s
                 r = Route.get_or_create(db.session,
                     tag = route_xml.get('tag'),
                     title = route_xml.get('title'),
@@ -267,7 +267,6 @@ class Nextbus():
                     }
                     requests.append((request_params, 'route'))
             responses = cls.async_request(requests)
-            db.session.begin()
             for rc_xml, rc_api_call in responses:
                 r = save_route(rc_xml[0], rc_api_call)
                 routes.append(r)
@@ -275,20 +274,21 @@ class Nextbus():
             return routes
 
     @classmethod
-    def get_predictions(cls, routes, truncate=True):
+    def get_predictions(cls, agency_tags, truncate=True):
         """
         Get vehicle arrival predictions
         request parameter 'stops' is actually a list of "route|stop" pairs
         """
+        if not agency_tags:
+            return []
         with Lock("agencies", shared=True), Lock("routes", shared=True):
+            db.session.begin()
+            routes = db.session.query(Route).join(Agency)\
+                .options(joinedload(Route.stops),
+                    joinedload(Route.directions))\
+                .filter(Agency.tag.in_(agency_tags)).all()
             if not routes:
                 return []
-            db.session.begin()
-            # Re-do this query inside the transaction, in case routes went poof in the meantime.
-            # This is probably dumb but I don't have a cleaner solution in mind for now...
-            # caveat: if routes were updated, get_predictions will silently fail (return nothing)
-            routes = db.session.query(Route)\
-                .filter(Route.id.in_([r.id for r in routes])).all()
             routes = {(r.agency.tag, r.tag): r for r in routes}
             if truncate:
                 db.session.query(Prediction)\
@@ -302,9 +302,9 @@ class Nextbus():
             for (a_tag, r_tag) in routes:
                 route = routes[(a_tag, r_tag)]
                 for s in route.stops:
-                    if route.agency.tag not in all_stops:
-                        all_stops[route.agency.tag] = []
-                    all_stops[route.agency.tag].append("{0}|{1}".format(route.tag, s))
+                    if a_tag not in all_stops:
+                        all_stops[a_tag] = []
+                    all_stops[a_tag].append("{0}|{1}".format(route.tag, s))
             requests = []
             predictions = []
             # Break this up by agency, since agency tag is a request param.
@@ -353,24 +353,26 @@ class Nextbus():
                                 'block': prediction.get('block'),
                                 'api_call_id': api_call.id}
                             predictions.append(p_params)
+            db.session.commit()
             db.session.begin()
             db.engine.execute(Prediction.__table__.insert(), predictions)
             db.session.commit()
             return predictions
 
     @classmethod
-    def get_vehicle_locations(cls, routes, truncate=True):
+    def get_vehicle_locations(cls, agency_tags, truncate=True):
         """
         Get vehicle GPS locations
         """
+        if not agency_tags:
+            return []
         with Lock("agencies", shared=True), Lock("routes", shared=True):
             db.session.begin()
-            # Re-do this query inside the transaction, in case routes went poof in the meantime.
-            # This is probably dumb but I don't have a cleaner solution in mind for now...
-            # caveat: if routes were updated, get_predictions will silently fail (return nothing)
-            routes = db.session.query(Route)\
+            routes = db.session.query(Route).join(Agency)\
                 .options(joinedload('directions'))\
-                .filter(Route.id.in_([r.id for r in routes])).all()
+                .filter(Agency.tag.in_(agency_tags)).all()
+            if not routes:
+                return []
             most_recent = db.session.query(VehicleLocation.route_id,
                             db.func.max(ApiCall.time))\
                     .join(ApiCall)\
@@ -420,6 +422,7 @@ class Nextbus():
                         'speed': float(vehicle.get('speedKmHr')),
                         'api_call_id': api_call.id}
                     vehicle_locations.append(vl)
+            db.session.commit()
             db.session.begin()
             db.engine.execute(VehicleLocation.__table__.insert(), vehicle_locations)
             db.session.commit()
