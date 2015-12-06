@@ -29,19 +29,23 @@
             maxZoom: 18,
             zoomControl: false,
         };
+
         var bounds = [
-            [40.400, -74.65], // sw
-            [40.600, -74.25], // ne
+            [{{ agency.lat_min }}, {{ agency.lon_min }}],
+            [{{ agency.lat_max }}, {{ agency.lon_max }}]
         ];
+        var center = {{ agency.center }};
         var boundsOptions = {
             animate: false,
             reset: true,
         };
-        var osm = "<a href=\"http://openstreetmap.org\">OpenStreetMap</a>";
         var tileUrl = 'http://{s}.tiles.antsar-static.com/{tileset}/{z}/{x}/{y}.png';
         var tileOptions = {
             subdomains: ['a', 'b', 'c', 'd', 'e'],
-            attribution: '&copy; ' + osm + ' Contributors',
+            attribution: '<a href="https://ant.sr/">ant.sr</a> '
+                + '<br>Map Data &copy; '
+                + '<a href="http://openstreetmap.org">OSM Contributors</a>'
+                + '<br>Bus Data &copy; {{ agency.title }}',
             tileset: 'rutgers-black',
             errorTileUrl: 'http://tiles.antsar-static.com/generic/tile-blank-black.png',
         };

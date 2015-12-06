@@ -2,7 +2,6 @@ import os
 from flask import Flask, render_template
 from flask.ext.bower import Bower
 from models import db
-import models
 
 app = Flask(__name__, instance_relative_config=True)
 
@@ -21,7 +20,11 @@ Bower(app)
 # Flask Web Routes
 @app.route('/')
 def map():
-    return render_template('map.html')
+    from models import Agency
+    # TODO: serve different agency depending on cookie (or special domain)
+    agency_tag = app.config['AGENCIES'][0]
+    agency = db.session.query(Agency).filter(Agency.tag==agency_tag).one()
+    return render_template('map.html', agency=agency)
 
 if __name__ == '__main__':
     # Run Flask

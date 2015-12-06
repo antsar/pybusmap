@@ -1,8 +1,10 @@
 from sqlalchemy.sql.expression import ClauseElement
 from flask.ext.sqlalchemy import SQLAlchemy
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.orm.exc import  NoResultFound
+from sqlalchemy.orm import object_session, column_property
 from sqlalchemy.dialects import postgresql
 from datetime import datetime
 
@@ -13,21 +15,21 @@ class BMModel():
     Our own Model add-on class for adding utility functions to db.Model.
     """
     @classmethod
-    def get_one(cls, session, **kwargs):
-        return session.query(cls).filter_by(**kwargs).first()
+    def get_one(self, session, **kwargs):
+        return session.query(self).filter_by(**kwargs).first()
 
     @classmethod
-    def get(cls, session, **kwargs):
-        return session.query(cls).filter_by(**kwargs).all()
+    def get(self, session, **kwargs):
+        return session.query(self).filter_by(**kwargs).all()
 
     @classmethod
-    def get_or_create(cls, session, create_method='', create_method_kwargs=None, **kwargs):
+    def get_or_create(self, session, create_method='', create_method_kwargs=None, **kwargs):
         """ Imitate Django's get_or_create() """
         try:
-            return session.query(cls).filter_by(**kwargs).one()
+            return session.query(self).filter_by(**kwargs).one()
         except NoResultFound:
             kwargs.update(create_method_kwargs or {})
-            new = getattr(cls, create_method, cls)(**kwargs)
+            new = getattr(self, create_method, cls)(**kwargs)
             session.add(new)
             return new
 
@@ -56,6 +58,14 @@ class Agency(db.Model, BMModel):
     api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
     api_call = db.relationship("ApiCall", backref="agencies")
 
+    @property
+    def center(self):
+        """
+        Centerpoint coordinates for this agency.
+        """
+        lat = (self.lat_max + self.lat_min) / 2
+        lon = (self.lon_max + self.lon_min) / 2
+        return [lat, lon]
 
 class Prediction(db.Model, BMModel):
     """
@@ -304,3 +314,16 @@ class ApiCall(db.Model, BMModel):
 
     # Parameters (request variables) of this API call
     params = db.Column(postgresql.JSON)
+
+
+# Hybrid properties (can't be defined until relevant classes are defined)
+
+# Agency boundaries (derived from Route boundaries)
+Agency.lat_min = column_property(db.select([db.func.min(Route.lat_min)])\
+                                   .where(Route.agency_id==Agency.id))
+Agency.lat_max = column_property(db.select([db.func.max(Route.lat_max)])\
+                                   .where(Route.agency_id==Agency.id))
+Agency.lon_min = column_property(db.select([db.func.min(Route.lon_min)])\
+                                   .where(Route.agency_id==Agency.id))
+Agency.lon_max = column_property(db.select([db.func.max(Route.lon_max)])\
+                                   .where(Route.agency_id==Agency.id))

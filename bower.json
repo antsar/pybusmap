@@ -1,0 +1,20 @@
+{
+  "name": "pybusmap",
+  "version": "0.0.0",
+  "authors": [
+    "Anton Sarukhanov <code@ant.sr>"
+  ],
+  "license": "MIT",
+  "homepage": "https://ant.sr",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "bootstrap": "~3.3.6",
+    "leaflet": "~0.7.7"
+  }
+}

@@ -37,3 +37,6 @@ celerybeat-schedule.db
 
 # Kernprof
 *.lprof
+
+# Bower Components
+bower_components
