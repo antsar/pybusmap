@@ -33,7 +33,15 @@ class Config(object):
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     PREDICTIONS_MAX_AGE = 5 * 60;
     LOCATIONS_MAX_AGE = 5 * 60;
-    AGENCIES = ["SAMPLE_AGENCY"]
+    AGENCIES = ['rutgers']
+    MAP_CUSTOM_ATTRIBUTION = '<a href="https://ant.sr/">ant.sr</a>'
+    MAP_DATA_ATTRIBUTION = '<a href="http://cartodb.com/attributions#basemaps">CartoDB</a>'
+    MAP_ERROR_TILE_URL = 'http://tiles.antsar-static.com/generic/tile-blank-black.png'
+    MAP_TILE_URL = 'http://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+    MAP_TILE_SUBDOMAINS = ['a', 'b', 'c']
+    MAP_TILESET = 'rutgers-black'
+    MAP_LAT_PADDING = 0.003
+    MAP_LON_PADDING = 0.003
 
 class ProdConfig(Config):
     SQLALCHEMY_URI = 'postgresql://localhost/pybusmap_prod'
