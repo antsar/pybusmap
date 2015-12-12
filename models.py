@@ -4,7 +4,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.orm.exc import  NoResultFound
-from sqlalchemy.orm import object_session, column_property
+from sqlalchemy.orm import backref, column_property
 from sqlalchemy.dialects import postgresql
 from datetime import datetime
 
@@ -58,14 +58,75 @@ class Agency(db.Model, BMModel):
     api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
     api_call = db.relationship("ApiCall", backref="agencies")
 
-    @property
-    def center(self):
-        """
-        Centerpoint coordinates for this agency.
-        """
-        lat = (self.lat_max + self.lat_min) / 2
-        lon = (self.lon_max + self.lon_min) / 2
-        return [lat, lon]
+    def serialize(self):
+        return {
+            'tag': self.tag,
+            'title': self.title,
+            'short_title': self.short_title,
+        }
+
+
+class ApiCall(db.Model, BMModel):
+    """
+    A retrieval of data from a data source.
+    """
+    __tablename__ = "api_call"
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Full URL of request
+    url = db.Column(db.String)
+
+    # Size of the dataset in bytes
+    size = db.Column(db.Integer, default=0)
+
+    # HTTP response code
+    status = db.Column(db.Integer)
+
+    # Any error text returned by the API
+    error = db.Column(db.String)
+
+    # Where the data came from
+    source = db.Column(db.Enum('Nextbus', name="source", native_enum=False), default='Nextbus')
+
+    # When this data was fetched
+    time = db.Column(db.DateTime, default=datetime.now)
+
+    # Parameters (request variables) of this API call
+    params = db.Column(postgresql.JSON)
+
+
+class Direction(db.Model, BMModel):
+    """
+    A direction of a route. "Eastbound" / "Westbound", "Inbound" / "Outbound".
+    """
+    __tablename__ = "direction"
+    __table_args__ = (
+        db.UniqueConstraint('tag', 'route_id'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+
+    # route_id - The agency which operates this route
+    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
+
+    # tag - Unique alphanumeric identifier (a.k.a. "machine name")
+    tag = db.Column(db.String)
+
+    # title
+    title = db.Column(db.String)
+
+    # name = A simplified/normalized name (for indexing; some routes may share this)
+    name= db.Column(db.String)
+
+    # API Request which was used to retrieve this data
+    api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
+    api_call = db.relationship("ApiCall", backref="directions")
+
+    def serialize(self):
+        return {
+            'tag': self.tag,
+            'title': self.title,
+        }
+
 
 class Prediction(db.Model, BMModel):
     """
@@ -107,6 +168,17 @@ class Prediction(db.Model, BMModel):
     # API Request which was used to retrieve this data
     api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
     api_call = db.relationship("ApiCall", backref="predictions")
+
+    def serialize(self):
+        return {
+            'route': self.route.tag,
+            'prediction': self.prediction,
+            'created': self.created,
+            'is_departure': self.is_departure,
+            'has_layover': self.has_layover,
+            'direction': self.direction.tag if self.direction else None,
+            'vehicle': self.vehicle,
+        }
 
 
 class Region(db.Model, BMModel):
@@ -183,32 +255,23 @@ class Route(db.Model, BMModel):
     api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
     api_call = db.relationship("ApiCall", backref="routes")
 
-
-class Direction(db.Model, BMModel):
-    """
-    A direction of a route. "Eastbound" / "Westbound", "Inbound" / "Outbound".
-    """
-    __tablename__ = "direction"
-    __table_args__ = (
-        db.UniqueConstraint('tag', 'route_id'),
-    )
-    id = db.Column(db.Integer, primary_key=True)
-
-    # route_id - The agency which operates this route
-    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
-
-    # tag - Unique alphanumeric identifier (a.k.a. "machine name")
-    tag = db.Column(db.String)
-
-    # title
-    title = db.Column(db.String)
-
-    # name = A simplified/normalized name (for indexing; some routes may share this)
-    name= db.Column(db.String)
-
-    # API Request which was used to retrieve this data
-    api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
-    api_call = db.relationship("ApiCall", backref="directions")
+    def serialize(self):
+        return {
+            'agency': self.agency.serialize(),
+            'tag': self.tag,
+            'title': self.title,
+            'short_title': self.short_title,
+            'color': self.color,
+            'opposite_color': self.opposite_color,
+            'bounds': {
+                'lat_min': self.lat_min,
+                'lat_max': self.lat_max,
+                'lon_min': self.lon_min,
+                'lon_max': self.lon_max,
+            },
+            'directions': {d.tag: d.serialize() for d in self.directions},
+            'stops': {s.tag: s.serialize() for s_tag, s in self.stops.items()},
+        }
 
 
 class Stop(db.Model, BMModel):
@@ -245,6 +308,14 @@ class Stop(db.Model, BMModel):
     # API Request which was used to retrieve this data
     api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
     api_call = db.relationship("ApiCall", backref="stops")
+
+    def serialize(self):
+        return {
+            'tag': self.tag,
+            'title': self.title,
+            'lat': self.lat,
+            'lon': self.lon,
+        }
 
 
 class VehicleLocation(db.Model, BMModel):
@@ -286,38 +357,19 @@ class VehicleLocation(db.Model, BMModel):
     api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
     api_call = db.relationship("ApiCall", backref="vehicle_locations")
 
-
-class ApiCall(db.Model, BMModel):
-    """
-    A retrieval of data from a data source.
-    """
-    __tablename__ = "api_call"
-    id = db.Column(db.Integer, primary_key=True)
-
-    # Full URL of request
-    url = db.Column(db.String)
-
-    # Size of the dataset in bytes
-    size = db.Column(db.Integer, default=0)
-
-    # HTTP response code
-    status = db.Column(db.Integer)
-
-    # Any error text returned by the API
-    error = db.Column(db.String)
-
-    # Where the data came from
-    source = db.Column(db.Enum('Nextbus', name="source", native_enum=False), default='Nextbus')
-
-    # When this data was fetched
-    time = db.Column(db.DateTime, default=datetime.now)
-
-    # Parameters (request variables) of this API call
-    params = db.Column(postgresql.JSON)
+    def serialize(self):
+        return {
+            'vehicle': self.vehicle,
+            'route': self.route.tag,
+            'direction': self.direction.tag if self.direction else None,
+            'lat': self.lat,
+            'lon': self.lon,
+            'time': self.time,
+            'speed': self.speed,
+        }
 
 
 # Hybrid properties (can't be defined until relevant classes are defined)
-
 # Agency boundaries (derived from Route boundaries)
 Agency.lat_min = column_property(db.select([db.func.min(Route.lat_min)])\
                                    .where(Route.agency_id==Agency.id))
