@@ -54,15 +54,10 @@ def update_vehicle_locations(loop=False,agencies=None):
             agencies = agencies.split(",")
         if not agencies:
             agencies = app.config['AGENCIES']
-        agencies = db.session.query(Agency).filter(Agency.tag.in_(agencies)).all()
-        vl_count = 0
-        route_count = 0
-        for agency in agencies:
-            vl_count += len(Nextbus.get_vehicle_locations(agency.routes, truncate=False))
-            route_count += len(agency.routes)
+        vl_count = len(Nextbus.get_vehicle_locations(agencies, truncate=False))
         elapsed = time.time() - start
-        print("Got {0} vehicle locations for {1} agencies ({2} routes) in {3:0.2f} seconds."\
-              .format(vl_count, len(agencies), route_count, elapsed))
+        print("Got {0} vehicle locations for {1} agencies in {2:0.2f} seconds."\
+              .format(vl_count, len(agencies), elapsed))
     if loop:
         while True:
             do_it(agencies)
