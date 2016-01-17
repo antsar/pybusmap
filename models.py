@@ -1,19 +1,24 @@
-from sqlalchemy.sql.expression import ClauseElement
+from datetime import datetime
+from flask import current_app
 from flask.ext.sqlalchemy import SQLAlchemy
-from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import backref, column_property
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.orm.exc import  NoResultFound
-from sqlalchemy.orm import backref, column_property
-from sqlalchemy.dialects import postgresql
-from datetime import datetime
+from sqlalchemy.schema import Table
+from sqlalchemy.sql.expression import ClauseElement
 
 db = SQLAlchemy(session_options={'autocommit': True})
 
+route_stop = Table('route_stop', db.Model.metadata,
+    db.Column('route_id', db.Integer, db.ForeignKey('route.id', ondelete="cascade")),
+    db.Column('stop_id', db.Integer, db.ForeignKey('stop.id', ondelete="cascade")),
+)
+
 class BMModel():
-    """
-    Our own Model add-on class for adding utility functions to db.Model.
-    """
+    """ Our own Model add-on class for adding utility functions to db.Model. """
     @classmethod
     def get_one(self, session, **kwargs):
         return session.query(self).filter_by(**kwargs).first()
@@ -29,15 +34,13 @@ class BMModel():
             return session.query(self).filter_by(**kwargs).one()
         except NoResultFound:
             kwargs.update(create_method_kwargs or {})
-            new = getattr(self, create_method, cls)(**kwargs)
+            new = getattr(self, create_method, self)(**kwargs)
             session.add(new)
             return new
 
 
 class Agency(db.Model, BMModel):
-    """
-    A transportation agency
-    """
+    """ A transportation agency """
     __tablename__ = "agency"
     id = db.Column(db.Integer, primary_key=True)
 
@@ -67,9 +70,7 @@ class Agency(db.Model, BMModel):
 
 
 class ApiCall(db.Model, BMModel):
-    """
-    A retrieval of data from a data source.
-    """
+    """ A retrieval of data from a data source. """
     __tablename__ = "api_call"
     id = db.Column(db.Integer, primary_key=True)
 
@@ -96,9 +97,7 @@ class ApiCall(db.Model, BMModel):
 
 
 class Direction(db.Model, BMModel):
-    """
-    A direction of a route. "Eastbound" / "Westbound", "Inbound" / "Outbound".
-    """
+    """ A direction of a route. "Eastbound" / "Westbound", "Inbound" / "Outbound". """
     __tablename__ = "direction"
     __table_args__ = (
         db.UniqueConstraint('tag', 'route_id'),
@@ -115,7 +114,7 @@ class Direction(db.Model, BMModel):
     title = db.Column(db.String)
 
     # name = A simplified/normalized name (for indexing; some routes may share this)
-    name= db.Column(db.String)
+    name = db.Column(db.String)
 
     # API Request which was used to retrieve this data
     api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
@@ -129,9 +128,7 @@ class Direction(db.Model, BMModel):
 
 
 class Prediction(db.Model, BMModel):
-    """
-    A vehicle arrival prediction
-    """
+    """ A vehicle arrival prediction """
     __tablename__ = "prediction"
     id = db.Column(db.Integer, primary_key=True)
 
@@ -182,9 +179,7 @@ class Prediction(db.Model, BMModel):
 
 
 class Region(db.Model, BMModel):
-    """
-    A geographic region
-    """
+    """ A geographic region """
     __tablename__ = "region"
     id = db.Column(db.Integer, primary_key=True)
 
@@ -197,9 +192,7 @@ class Region(db.Model, BMModel):
 
 
 class Route(db.Model, BMModel):
-    """
-    A bus route, train line, etc.
-    """
+    """ A transit line: bus route, train line, etc. """
     __tablename__ = "route"
     __table_args__ = (
         db.UniqueConstraint('tag', 'agency_id'),
@@ -241,7 +234,7 @@ class Route(db.Model, BMModel):
     directions = db.relationship("Direction", backref="route", lazy="joined")
 
     # stops - Stops or stations on this route
-    stops = db.relationship("Stop", backref="route", lazy="joined", collection_class=attribute_mapped_collection("tag"))
+    stops = db.relationship("Stop", secondary=route_stop, back_populates="routes", lazy="joined", collection_class=attribute_mapped_collection("tag"), cascade="all", passive_deletes=True)
 
     # vehicleLocations - Locations of vehicles on this route.
     vehicle_locations = db.relationship("VehicleLocation", backref="route")
@@ -275,19 +268,17 @@ class Route(db.Model, BMModel):
 
 
 class Stop(db.Model, BMModel):
-    """
-    A stop or station. Vehicles stop here and pick up or drop off passengers.
+    """ A stop or station. Vehicles stop here and pick up or drop off passengers.
     Sometimes the driver gets out to poop.
-    Stops are uniquely uniquely identifiable by route:tag
-    """
+    Stops are uniquely uniquely identifiable by (lat,lon) """
     __tablename__ = "stop"
     __table_args__ = (
-        db.UniqueConstraint('tag', 'route_id'),
+        db.UniqueConstraint('tag', 'lat', 'lon'),
     )
     id = db.Column(db.Integer, primary_key=True)
 
-    # The route which this stop is a part of.
-    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
+    # routes - Routes which serve this stop.
+    routes = db.relationship("Route", secondary=route_stop, back_populates="stops", collection_class=attribute_mapped_collection("tag"), cascade="all", passive_deletes=True)
 
     # stop_id - Numeric ID
     # Not all routes/stops have this! Cannot be used as an index/lookup.
@@ -305,9 +296,69 @@ class Stop(db.Model, BMModel):
     # Longitude of this bus stop
     lon = db.Column(db.Float)
 
+    # Count of averaged lat/lon pairs represented by lat,lon.
+    lat_lon_count = db.Column(db.Integer, default=0)
+
     # API Request which was used to retrieve this data
     api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
     api_call = db.relationship("ApiCall", backref="stops")
+
+    @classmethod
+    def get_or_create(self, session, create_method='', create_method_kwargs=None, **kwargs):
+        """ Special logic for storing Stop objects.
+            Nextbus gives the same stop tag for all routes which serve that stop, but
+            the stop's provided GPS coords vary. I am assuming this to be an error, as
+            buses usually stop at a shared bus shelter (at the same coords) regardless
+            of what route they serve. I want to only store one instance of the stop,
+            at the mean lat/lon of all provided locations. We will calculate this as a
+            streaming mean, to avoid storing all lat/lon pairs. """
+
+        # Determine if this is the same stop as another one already stored.
+        existing = session.query(self).filter(
+            db.and_(
+                self.tag == kwargs['tag'],
+                self.lat >= float(kwargs.get('lat')) - current_app.config.get('SAME_STOP_LAT', 0),
+                self.lat <= float(kwargs.get('lat')) + current_app.config.get('SAME_STOP_LAT', 0),
+                self.lon >= float(kwargs.get('lon')) - current_app.config.get('SAME_STOP_LON', 0),
+                self.lon <= float(kwargs.get('lon')) + current_app.config.get('SAME_STOP_LON', 0),
+            )).all()
+
+        if len(existing) > 0:
+            if len(existing) > 1:
+                # Multiple possible matches! Find closest one. (This is an insane edge case)
+                min_diff = None
+                best_match = None
+                for stop in existing:
+                    diff = abs(stop.lat - kwargs.get('lat')) + abs(stop.lon - kwargs.get('lon'))
+                    if not min_diff or diff < min_diff:
+                        min_diff = diff
+                        best_match = stop
+                existing = best_match
+            else:
+                existing = existing.pop()
+
+            # Update mean lat/lon in "stream average" fashion
+            count_averaged = existing.lat_lon_count
+            existing.lat = ((existing.lat * count_averaged) + kwargs.get('lat')) / (count_averaged + 1)
+            existing.lon = ((existing.lon * count_averaged) + kwargs.get('lon')) / (count_averaged + 1)
+            existing.lat_lon_count = count_averaged + 1
+            if 'routes' in kwargs:
+                for (k,v) in kwargs.get('routes').items():
+                    existing.routes.set(v)
+            return existing
+
+        else:
+            try:
+                if 'routes' in kwargs:
+                    routes = kwargs.pop('routes')
+                r = session.query(self).filter_by(**kwargs).one()
+                return r
+            except NoResultFound:
+                kwargs.update(create_method_kwargs or {})
+                new = getattr(self, create_method, self)(**kwargs)
+                new.routes = routes
+                session.add(new)
+                return new
 
     def serialize(self):
         return {
@@ -319,9 +370,7 @@ class Stop(db.Model, BMModel):
 
 
 class VehicleLocation(db.Model, BMModel):
-    """
-    A vehicle geolocation for a specific time.
-    """
+    """ A vehicle geolocation for a specific time. """
     __tablename__ = "vehicle_location"
     id = db.Column(db.Integer, primary_key=True)
 

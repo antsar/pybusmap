@@ -34,6 +34,14 @@ class Config(object):
     PREDICTIONS_MAX_AGE = 5 * 60;
     LOCATIONS_MAX_AGE = 5 * 60;
     AGENCIES = ['rutgers']
+
+    # Distance within stops with the same tag will be averaged to one lat/lon point.
+    # Guide: http://gis.stackexchange.com/a/8674
+    # 0.001 = 110 Meters (football field)
+    SAME_STOP_LAT = 0.001
+    SAME_STOP_LON = 0.001
+
+    # Map display parameters
     MAP_CUSTOM_ATTRIBUTION = '<a href="https://ant.sr/">ant.sr</a>'
     MAP_DATA_ATTRIBUTION = '<a href="http://cartodb.com/attributions#basemaps">CartoDB</a>'
     MAP_ERROR_TILE_URL = 'http://tiles.antsar-static.com/generic/tile-blank-black.png'

@@ -30,7 +30,8 @@ def map():
 
 @app.route('/ajax')
 def ajax():
-    print("BEGIN AJAX {0}".format(datetime.now()))
+    # TODO: OPTIMIZE THIS SHIT.
+    # Over 1sec/request just to get predictions? Fuck that noise.
     dataset = request.args.get('dataset')
     agency = request.args.get('agency')
     def routes():
@@ -41,7 +42,6 @@ def ajax():
 
     def vehicles():
         from models import Agency, Route, VehicleLocation, Prediction
-        print("BEGIN VEHICLES")
         vehicle_locations = db.session.query(VehicleLocation)\
             .join(VehicleLocation.route).join(Route.agency)\
             .filter(Agency.tag==agency).all()
@@ -58,7 +58,6 @@ def ajax():
         r = jsonify(routes())
     elif dataset == "vehicles":
         r = jsonify(vehicles())
-    print("END AJAX {0}".format(datetime.now()))
     return r
 
 if __name__ == '__main__':
