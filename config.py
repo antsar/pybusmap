@@ -38,8 +38,8 @@ class Config(object):
     # Distance within stops with the same tag will be averaged to one lat/lon point.
     # Guide: http://gis.stackexchange.com/a/8674
     # 0.001 = 110 Meters (football field)
-    SAME_STOP_LAT = 0.001
-    SAME_STOP_LON = 0.001
+    SAME_STOP_LAT = 0.005
+    SAME_STOP_LON = 0.005
 
     # Map display parameters
     MAP_CUSTOM_ATTRIBUTION = '<a href="https://ant.sr/">ant.sr</a>'
@@ -48,8 +48,8 @@ class Config(object):
     MAP_TILE_URL = 'http://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
     MAP_TILE_SUBDOMAINS = ['a', 'b', 'c']
     MAP_TILESET = 'rutgers-black'
-    MAP_LAT_PADDING = 0.003
-    MAP_LON_PADDING = 0.003
+    MAP_LAT_PADDING = 0.01
+    MAP_LON_PADDING = 0.01
 
 class ProdConfig(Config):
     SQLALCHEMY_URI = 'postgresql://localhost/pybusmap_prod'

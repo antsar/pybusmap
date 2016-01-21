@@ -3,7 +3,7 @@ from lxml import etree
 import json
 import time
 from datetime import datetime, timedelta
-from models import Agency, ApiCall, Direction, Prediction, Region, Route, Stop, VehicleLocation
+from models import Agency, ApiCall, Direction, Prediction, Region, Route, RouteStop, Stop, VehicleLocation
 from app import app, db
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import NoResultFound
@@ -190,7 +190,7 @@ class Nextbus():
         but can only show 100 routes at a time. So, use routeList
         to get a list, then batch the first 100 and piecemeal the rest.
         """
-        with Lock("agencies", shared=True), Lock("routes"):
+        with Lock("agencies", shared=True), Lock("routes"), Lock("vehicle_locations"), Lock("predictions"):
             def save_route(route_xml, api_call):
                 def save_directions(route_xml, route_obj, api_call):
                     directions = route_xml.findall('direction')
@@ -205,13 +205,15 @@ class Nextbus():
                     stops = route_xml.findall('stop')
                     for stop in stops:
                         s =  Stop.get_or_create(db.session,
-                            tag = stop.get('tag'),
                             title = stop.get('title'),
                             lat = float(stop.get('lat')),
                             lon = float(stop.get('lon')),
                             stop_id = stop.get('stopId'),
-                            api_call = api_call,
-                            routes = {route_obj.tag: route_obj})
+                            api_call = api_call)
+                        rs = RouteStop.get_or_create(db.session,
+                            route = route_obj,
+                            stop = s,
+                            stop_tag = stop.get('tag'))
                 r = Route.get_or_create(db.session,
                     tag = route_xml.get('tag'),
                     title = route_xml.get('title'),
@@ -281,7 +283,7 @@ class Nextbus():
         """
         if not agency_tags:
             return []
-        with Lock("agencies", shared=True), Lock("routes", shared=True):
+        with Lock("agencies", shared=True), Lock("routes", shared=True), Lock("predictions"):
             db.session.begin()
             routes = db.session.query(Route).join(Agency)\
                 .options(joinedload(Route.stops),
@@ -304,7 +306,7 @@ class Nextbus():
                 for s in route.stops:
                     if a_tag not in all_stops:
                         all_stops[a_tag] = []
-                    all_stops[a_tag].append("{0}|{1}".format(route.tag, s))
+                    all_stops[a_tag].append("{0}|{1}".format(route.tag, route.stops[s].stop_tag))
             requests = []
             predictions = []
             # Break this up by agency, since agency tag is a request param.
@@ -330,7 +332,7 @@ class Nextbus():
                     route = routes[(agency_tag, route_tag)]
                     stop_tag = prediction_set.get('stopTag')
                     try:
-                        stop = route.stops[stop_tag]
+                        stop = route.stops[stop_tag].stop
                     except KeyError:
                         raise(NextbusException("Non-existent stop '{0}' for agency '{1}' route '{2}'"\
                             .format(stop_tag, route.agency.tag, route.tag)))
@@ -366,7 +368,7 @@ class Nextbus():
         """
         if not agency_tags:
             return []
-        with Lock("agencies", shared=True), Lock("routes", shared=True):
+        with Lock("agencies", shared=True), Lock("routes", shared=True), Lock("vehicle_locations"):
             db.session.begin()
             routes = db.session.query(Route).join(Agency)\
                 .options(joinedload('directions'))\

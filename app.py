@@ -35,10 +35,15 @@ def ajax():
     dataset = request.args.get('dataset')
     agency = request.args.get('agency')
     def routes():
-        from models import Agency, Route
+        from models import Agency, Route, Stop
         routes = db.session.query(Route).join(Agency)\
             .filter(Agency.tag==agency).all()
-        return {r.tag: r.serialize() for r in routes}
+        stops = db.session.query(Stop).options(joinedload(Stop.routes))\
+            .filter(Route.tag.in_([r.tag for r in routes])).all()
+        return {
+            "routes": {r.tag: r.serialize() for r in routes},
+            "stops": {s.id: s.serialize() for s in stops}
+        }
 
     def vehicles():
         from models import Agency, Route, VehicleLocation, Prediction

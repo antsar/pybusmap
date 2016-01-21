@@ -1,13 +1,13 @@
 """empty message
 
-Revision ID: f7db51a50a
+Revision ID: 295c9a7939e
 Revises: None
-Create Date: 2016-01-17 17:59:31.684417
+Create Date: 2016-01-21 10:08:57.964589
 
 """
 
 # revision identifiers, used by Alembic.
-revision = 'f7db51a50a'
+revision = '295c9a7939e'
 down_revision = None
 
 from alembic import op
@@ -38,7 +38,6 @@ def upgrade():
     op.create_table('stop',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('stop_id', sa.Integer(), nullable=True),
-    sa.Column('tag', sa.String(), nullable=True),
     sa.Column('title', sa.String(), nullable=True),
     sa.Column('lat', sa.Float(), nullable=True),
     sa.Column('lon', sa.Float(), nullable=True),
@@ -46,7 +45,7 @@ def upgrade():
     sa.Column('api_call_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['api_call_id'], ['api_call.id'], ondelete='set null'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('tag', 'lat', 'lon')
+    sa.UniqueConstraint('title', 'lat', 'lon')
     )
     op.create_table('agency',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -91,10 +90,12 @@ def upgrade():
     sa.UniqueConstraint('tag', 'route_id')
     )
     op.create_table('route_stop',
-    sa.Column('route_id', sa.Integer(), nullable=True),
-    sa.Column('stop_id', sa.Integer(), nullable=True),
+    sa.Column('route_id', sa.Integer(), nullable=False),
+    sa.Column('stop_id', sa.Integer(), nullable=False),
+    sa.Column('stop_tag', sa.String(), nullable=True),
     sa.ForeignKeyConstraint(['route_id'], ['route.id'], ondelete='cascade'),
-    sa.ForeignKeyConstraint(['stop_id'], ['stop.id'], ondelete='cascade')
+    sa.ForeignKeyConstraint(['stop_id'], ['stop.id'], ondelete='cascade'),
+    sa.PrimaryKeyConstraint('route_id', 'stop_id')
     )
     op.create_table('prediction',
     sa.Column('id', sa.Integer(), nullable=False),

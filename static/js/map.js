@@ -8,6 +8,9 @@ var BusMap = {};
 BusMap.Map = function(opts) {
     this.opts = opts;
     var that = this;
+    var stops = {};
+    var stopMarkers = {};
+    var routes = {};
     init();
 
     /* Constructor - create/initialize the map */
@@ -53,12 +56,36 @@ BusMap.Map = function(opts) {
             "dataset": "routes",
             "agency": that.opts.agency,
         };
+        function updateStopsUI(stops) {
+            for (var s in stops) {
+                // TODO: Put the stop marker on the map.
+                var markerIcon = L.icon({
+                    iconUrl: 'http://rutge.rs/img/bluedot.png',
+                    iconSize: [24,24],
+                    // options
+                });
+                var text = '<header>' + stops[s].title + '</header>';
+                var markerOpts = {
+                    icon: markerIcon,
+                    title: stops[s].title,
+                    opacity: 1,
+                };
+                var popupOpts = {
+                    closeButton: true,
+                    keepInView: true,
+                };
+                stopMarkers[stops[s].tag + "*" + stops[s].route] = L.marker(
+                    [stops[s].lat, stops[s].lon],
+                    markerOpts).addTo(that.leaflet);
+            }
+        }
         $.getJSON(url, params)
             .done(function(data) {
+                stops = data.stops;
+                routes = data.routes;
+                updateStopsUI(stops);
                 console.log(data);
             });
-        // cb: update that.routes && update map (and UI?). data bindings??
-        // todo
         return that;
     };
 

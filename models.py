@@ -3,6 +3,7 @@ from flask import current_app
 from flask.ext.sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import backref, column_property
 from sqlalchemy.orm.collections import attribute_mapped_collection
@@ -11,11 +12,6 @@ from sqlalchemy.schema import Table
 from sqlalchemy.sql.expression import ClauseElement
 
 db = SQLAlchemy(session_options={'autocommit': True})
-
-route_stop = Table('route_stop', db.Model.metadata,
-    db.Column('route_id', db.Integer, db.ForeignKey('route.id', ondelete="cascade")),
-    db.Column('stop_id', db.Integer, db.ForeignKey('stop.id', ondelete="cascade")),
-)
 
 class BMModel():
     """ Our own Model add-on class for adding utility functions to db.Model. """
@@ -234,7 +230,8 @@ class Route(db.Model, BMModel):
     directions = db.relationship("Direction", backref="route", lazy="joined")
 
     # stops - Stops or stations on this route
-    stops = db.relationship("Stop", secondary=route_stop, back_populates="routes", lazy="joined", collection_class=attribute_mapped_collection("tag"), cascade="all", passive_deletes=True)
+    #stops = db.relationship("Stop", secondary=route_stop, back_populates="routes", lazy="joined", collection_class=attribute_mapped_collection("id"), cascade="all", passive_deletes=True)
+    stops = association_proxy("route_stop", "stop")
 
     # vehicleLocations - Locations of vehicles on this route.
     vehicle_locations = db.relationship("VehicleLocation", backref="route")
@@ -263,8 +260,28 @@ class Route(db.Model, BMModel):
                 'lon_max': self.lon_max,
             },
             'directions': {d.tag: d.serialize() for d in self.directions},
-            'stops': {s.tag: s.serialize() for s_tag, s in self.stops.items()},
+            'stops': list(self.stops.keys()),
         }
+
+class RouteStop(db.Model, BMModel):
+    """ Association Object for Stop.routes / Route.stops. A simple many-to-many association
+        table would not suffice, because we also need to track which Stop Tag is used by this
+        Route-Stop combo. A single Stop can have multiple Stop Tags, because Nextbus. """
+    __tablename__ = 'route_stop'
+    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"), primary_key=True)
+    route = db.relationship("Route", backref=backref(
+                            "stops",
+                            collection_class=attribute_mapped_collection("stop_tag"),
+                            cascade="all, delete-orphan"))
+
+    stop_id = db.Column(db.Integer, db.ForeignKey('stop.id', ondelete="cascade"), primary_key=True)
+    stop = db.relationship("Stop", backref=backref(
+                            "routes",
+                            collection_class=attribute_mapped_collection("route_id"),
+                            cascade="all, delete-orphan"))
+
+    stop_tag = db.Column(db.String)
+
 
 
 class Stop(db.Model, BMModel):
@@ -273,19 +290,18 @@ class Stop(db.Model, BMModel):
     Stops are uniquely uniquely identifiable by (lat,lon) """
     __tablename__ = "stop"
     __table_args__ = (
-        db.UniqueConstraint('tag', 'lat', 'lon'),
+        db.UniqueConstraint('title', 'lat', 'lon'),
     )
     id = db.Column(db.Integer, primary_key=True)
 
     # routes - Routes which serve this stop.
-    routes = db.relationship("Route", secondary=route_stop, back_populates="stops", collection_class=attribute_mapped_collection("tag"), cascade="all", passive_deletes=True)
+    #routes = db.relationship("Route", secondary=route_stop, back_populates="stops", collection_class=attribute_mapped_collection("tag"), cascade="all", passive_deletes=True)
+    routes = association_proxy("route_stop", "route",
+                        creator = lambda k,v: RouteStop(stop_tag=k, route=v))
 
     # stop_id - Numeric ID
     # Not all routes/stops have this! Cannot be used as an index/lookup.
     stop_id = db.Column(db.Integer)
-
-    # Alphanumeric name (unique with route_id)
-    tag = db.Column(db.String)
 
     # Human-readable title
     title = db.Column(db.String)
@@ -316,7 +332,7 @@ class Stop(db.Model, BMModel):
         # Determine if this is the same stop as another one already stored.
         existing = session.query(self).filter(
             db.and_(
-                self.tag == kwargs['tag'],
+                self.title == kwargs['title'],
                 self.lat >= float(kwargs.get('lat')) - current_app.config.get('SAME_STOP_LAT', 0),
                 self.lat <= float(kwargs.get('lat')) + current_app.config.get('SAME_STOP_LAT', 0),
                 self.lon >= float(kwargs.get('lon')) - current_app.config.get('SAME_STOP_LON', 0),
@@ -339,12 +355,11 @@ class Stop(db.Model, BMModel):
 
             # Update mean lat/lon in "stream average" fashion
             count_averaged = existing.lat_lon_count
-            existing.lat = ((existing.lat * count_averaged) + kwargs.get('lat')) / (count_averaged + 1)
-            existing.lon = ((existing.lon * count_averaged) + kwargs.get('lon')) / (count_averaged + 1)
+            existing.lat = round(((existing.lat * count_averaged) + kwargs.get('lat'))
+                                     / (count_averaged + 1), 5)
+            existing.lon = round(((existing.lon * count_averaged) + kwargs.get('lon'))
+                                     / (count_averaged + 1), 5)
             existing.lat_lon_count = count_averaged + 1
-            if 'routes' in kwargs:
-                for (k,v) in kwargs.get('routes').items():
-                    existing.routes.set(v)
             return existing
 
         else:
@@ -356,18 +371,17 @@ class Stop(db.Model, BMModel):
             except NoResultFound:
                 kwargs.update(create_method_kwargs or {})
                 new = getattr(self, create_method, self)(**kwargs)
-                new.routes = routes
                 session.add(new)
                 return new
 
     def serialize(self):
         return {
-            'tag': self.tag,
+            'id': self.id,
             'title': self.title,
             'lat': self.lat,
             'lon': self.lon,
+            'routes': list(self.routes.keys()),
         }
-
 
 class VehicleLocation(db.Model, BMModel):
     """ A vehicle geolocation for a specific time. """
