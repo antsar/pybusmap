@@ -68,15 +68,3 @@ def ajax():
 if __name__ == '__main__':
     # Run Flask
     app.run(host='0.0.0.0')
-
-    # Run Celery
-    from celery import current_app
-    from celery.bin import worker
-    application = current_app.get_current_object()
-    worker = worker(app=application)
-    options = {
-        'broker': app.config['CELERY_BROKER_URL'],
-        'loglevel': 'INFO',
-        'traceback': True,
-    }
-    worker.run(**options)

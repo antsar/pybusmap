@@ -199,7 +199,7 @@ class Nextbus():
                             tag = direction.get('tag'),
                             title = direction.get('title'),
                             name = direction.get('name'),
-                            api_call = api_call)
+                            api_call_id = api_call.id)
                         route_obj.directions.append(d)
                 def save_stops(route_xml, route_obj, api_call):
                     stops = route_xml.findall('stop')
@@ -209,10 +209,11 @@ class Nextbus():
                             lat = float(stop.get('lat')),
                             lon = float(stop.get('lon')),
                             stop_id = stop.get('stopId'),
-                            api_call = api_call)
+                            api_call_id = api_call.id)
+                        db.session.flush()
                         rs = RouteStop.get_or_create(db.session,
-                            route = route_obj,
-                            stop = s,
+                            route_id = route_obj.id,
+                            stop_id = s.id,
                             stop_tag = stop.get('tag'))
                 r = Route.get_or_create(db.session,
                     tag = route_xml.get('tag'),
@@ -227,6 +228,7 @@ class Nextbus():
                     api_call = api_call)
                 save_directions(route_xml, r, api_call)
                 save_stops(route_xml, r, api_call)
+                db.session.flush()
                 return r
 
             # Get list of routes

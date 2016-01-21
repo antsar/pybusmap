@@ -1,13 +1,16 @@
 from datetime import datetime
+from itertools import chain
 from flask import current_app
 from flask.ext.sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.engine import reflection
+from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import backref, column_property
 from sqlalchemy.orm.collections import attribute_mapped_collection
-from sqlalchemy.orm.exc import  NoResultFound
+from sqlalchemy.orm.exc import  MultipleResultsFound, NoResultFound
 from sqlalchemy.schema import Table
 from sqlalchemy.sql.expression import ClauseElement
 
@@ -25,9 +28,21 @@ class BMModel():
 
     @classmethod
     def get_or_create(self, session, create_method='', create_method_kwargs=None, **kwargs):
-        """ Imitate Django's get_or_create() """
+        """ Try to find an existing object filtering by kwargs. If not found, create. """
+        keys = [k.name for k in inspect(self).primary_key]
+        inspector = reflection.Inspector.from_engine(db.engine)
+        keys = list(chain.from_iterable([i['column_names'] for i in
+                    inspector.get_indexes(inspect(self).mapped_table)]))
+        keys += [k.name for k in inspect(self).primary_key]
+        filter_args = {arg: kwargs[arg] for arg in kwargs if arg in keys}
         try:
-            return session.query(self).filter_by(**kwargs).one()
+            return session.query(self).filter_by(**filter_args).one()
+        except MultipleResultsFound:
+            raise Exception("{0} matches in get_or_create. This should never happen."
+                " More primary keys are probably needed for some models."
+                "\nkwargs = {1}\nkeys = {2}\nfilter_args = {3}"
+                .format(session.query(self).filter_by(**filter_args).count(),
+                    kwargs, keys, filter_args))
         except NoResultFound:
             kwargs.update(create_method_kwargs or {})
             new = getattr(self, create_method, self)(**kwargs)
@@ -180,7 +195,7 @@ class Region(db.Model, BMModel):
     id = db.Column(db.Integer, primary_key=True)
 
     # title - Region title
-    title = db.Column(db.String, unique=True)
+    title = db.Column(db.String, unique=True, index=True)
 
     # API Request which was used to retrieve this data
     api_call_id = db.Column(db.Integer, db.ForeignKey('api_call.id', ondelete="set null"))
@@ -280,7 +295,7 @@ class RouteStop(db.Model, BMModel):
                             collection_class=attribute_mapped_collection("route_id"),
                             cascade="all, delete-orphan"))
 
-    stop_tag = db.Column(db.String)
+    stop_tag = db.Column(db.String, nullable=False)
 
 
 
@@ -295,9 +310,8 @@ class Stop(db.Model, BMModel):
     id = db.Column(db.Integer, primary_key=True)
 
     # routes - Routes which serve this stop.
-    #routes = db.relationship("Route", secondary=route_stop, back_populates="stops", collection_class=attribute_mapped_collection("tag"), cascade="all", passive_deletes=True)
     routes = association_proxy("route_stop", "route",
-                        creator = lambda k,v: RouteStop(stop_tag=k, route=v))
+                        creator = lambda k,v: RouteStop(stop_id=self.id, stop_tag=k, route_id=v.id))
 
     # stop_id - Numeric ID
     # Not all routes/stops have this! Cannot be used as an index/lookup.
