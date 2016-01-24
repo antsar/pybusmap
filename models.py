@@ -186,6 +186,7 @@ class Prediction(db.Model, BMModel):
             'has_layover': self.has_layover,
             'direction': self.direction.tag if self.direction else None,
             'vehicle': self.vehicle,
+            'stop_id': self.stop_id,
         }
 
 
