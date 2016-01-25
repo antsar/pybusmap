@@ -12,7 +12,7 @@ html, body {
     width: 100%;
 }
 
-/* Bottom-right credits box */
+/* Bottom-right about box */
 #map .leaflet-control-attribution {
     background-color: rgba(0,0,0,.8);
     border-top: 1px solid #eee;
@@ -20,12 +20,13 @@ html, body {
     border-top-left-radius: 3px;
     color: #eee;
 }
-#map .leaflet-control-attribution a,
-#map .leaflet-control-attribution a:hover,
-#map .leaflet-control-attribution a:visited,
-#map .leaflet-control-attribution a:active {
+a,
+a:hover,
+a:visited,
+a:active {
     color: #fff;
     font-weight: bold;
+    text-decoration: none;
 }
 #map div.leaflet-popup a.leaflet-popup-close-button {
     display: none;
@@ -46,4 +47,44 @@ html, body {
     font-weight: bold;
     font-size: 1.3em;
     color: #fff;
+}
+#about {
+    display: none;
+    background-color: #444;
+    font-family: sans-serif;
+    color: #eee;
+    border-radius: 1em;
+    box-sizing: border-box;
+    border: 2px solid #888;
+    position: absolute;
+    width: 80%;
+    left: 10%;
+    top: 20%;
+    padding: 1em;
+    max-height: 80%;
+    overflow: auto;
+}
+#about #close-about {
+    float: right;
+}
+#about h2 {
+    text-align: center;
+}
+#about a,
+#about a:hover,
+#about a:visited,
+#about a:active {
+    color: #fff;
+    font-weight: bold;
+}
+
+@media all and (max-width: 600px) {
+    #about {
+        width: 100%;
+        left: 0;
+        top: 10%;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+    }
 }

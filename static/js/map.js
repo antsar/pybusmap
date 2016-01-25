@@ -30,6 +30,11 @@ BusMap.Map = function(opts) {
         else {that.leaflet.fitBounds(that.opts.bounds)}
         if (that.opts.zoom) that.leaflet.setZoom(that.opts.zoom);
 
+        // Set attribution
+        $(".leaflet-control-attribution").html('<a id="show-about" href="#">About</a>');
+        $("#show-about").click(function() { $("#about").show(); });
+        $("#close-about").click(function() { $("#about").hide(); });
+
         // Restore the user's last view.
         goToLastView();
 
@@ -73,7 +78,6 @@ BusMap.Map = function(opts) {
                 that.stops = data.stops;
                 that.routes = data.routes;
                 updateStopsUI(that.stops);
-                console.log(data);
             });
         return that;
     };
@@ -93,8 +97,7 @@ BusMap.Map = function(opts) {
                     // Store this prediction on the stop and on the vehicle.
                 }
                 that.vehicles = data.locations;
-                updateStopsUI(that.stops);
-                console.log(data);
+                //updateStopsUI(that.stops);
             });
         return that;
     };
@@ -211,7 +214,6 @@ BusMap.getCookies = function() {
     return cookies;
 }
 BusMap.getCookie = function(name) {
-    console.log("Getting cookie\n" + "BM-" +  name);
     return BusMap.getCookies()["BM-" + name];
 }
 
@@ -222,6 +224,5 @@ BusMap.setCookie = function(name, value, exp_days) {
     exp_date = new Date();
     exp_date.setDate(exp_date.getDate() + exp_days);
     value = escape(value) + "; expires=" + exp_date.toUTCString();
-    console.log("Setting cookie\n" + "BM-" + name + "=" + value);
     document.cookie = "BM-" + name + "=" + value;
 }

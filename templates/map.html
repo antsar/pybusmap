@@ -11,6 +11,33 @@
 {% endblock %}
 {% block body %}
     <div id="map"></div>
+    <div id="about">
+        <div id="close-about"><a href="javascript:void(0);">&times;</a></div>
+        <h2>About PyBusMap</h2>
+        <p>
+            This map displays real-time vehicle locations and arrival predictions
+            for public transit systems which are tracked by NextBus.
+        </p>
+        <p>
+            Built by <a href="https://ant.sr">Anton Sarukhanov</a>. Open source
+            and MIT licensed.
+            <a href="https://git.xhost.io/anton/pybusmap">Fork it</a>.
+        </p>
+        <p>
+            <a href="http://leafletjs.com"
+                title="A JS library for interactive maps">Leaflet</a>
+                - A JavaScript library for interactive maps.
+        </p>
+        <p>
+            Map Data &copy; {{ config['MAP_DATA_ATTRIBUTION']|safe }}.
+        </p>
+        <p>
+            Transit Data &copy; {{ agency.title }} and/or NextBus.
+        </p>
+        <p>
+            Data sourced from the <a href="http://nextbus.com">Nextbus</a> API.
+        </p>
+    </div>
     <script src="bower/leaflet/dist/leaflet.js"></script>
     <script src="bower/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
     <script src="bower/jquery/dist/jquery.min.js"></script>
@@ -22,9 +49,6 @@
             tileUrl: '{{ config['MAP_TILE_URL']|safe }}',
             tileOptions: {
                 subdomains: {{ config['MAP_TILE_SUBDOMAINS']|tojson|safe }},
-                attribution: '{{ config['MAP_CUSTOM_ATTRIBUTION']|safe }}'
-                    + ' | Data &copy; {{ config['MAP_DATA_ATTRIBUTION']|safe }}'
-                    + ', {{ agency.title }}',
                 tileset: '{{ config['MAP_TILESET']|safe }}',
                 errorTileUrl: '{{ config['MAP_ERROR_TILE_URL']|safe }}',
             },
