@@ -50,12 +50,25 @@ def ajax():
         vehicle_locations = db.session.query(VehicleLocation)\
             .join(VehicleLocation.route).join(Route.agency)\
             .filter(Agency.tag==agency).all()
-        predictions = db.session.query(Prediction)\
-            .join(Prediction.route).join(Route.agency)\
-            .filter(Agency.tag==agency).all()
+        now = datetime.now()
+
+        p_inner = db.session.query(Prediction.vehicle, Prediction.stop_id,
+                                   db.func.max(Prediction.api_call_id).label("api_call_id"))\
+                            .group_by(Prediction.vehicle, Prediction.stop_id)\
+                            .subquery()
+        predictions = db.session.query(Prediction).join(p_inner, db.and_(
+                p_inner.c.api_call_id == Prediction.api_call_id,
+                p_inner.c.vehicle == Prediction.vehicle,
+                p_inner.c.stop_id == Prediction.stop_id
+            )).filter(
+                Agency.tag==agency,
+                Prediction.prediction >= now)\
+            .group_by(Prediction.id, Prediction.vehicle, Prediction.stop_id)\
+            .all()
+
         z = {
                 "locations": {v.vehicle: v.serialize() for v in vehicle_locations},
-                "predictions": {p.vehicle: p.serialize() for p in predictions}
+                "predictions": {p.id: p.serialize() for p in predictions}
         }
         return z
 

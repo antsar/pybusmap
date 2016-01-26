@@ -298,7 +298,7 @@ class Nextbus():
                 db.session.query(Prediction)\
                     .filter(
                         Prediction.route_id.in_(
-                            [r.id for r in routes]
+                            [routes[a,r].id for a,r in routes]
                         ))\
                     .delete(synchronize_session=False)
                 db.session.expire_all()
