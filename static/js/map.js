@@ -1,5 +1,7 @@
 /* The primary class for this project */
-var BusMap = {};
+var BusMap = {
+    cookiePrefix: "BM_"
+};
 
 /*
     Creates and manipulates a Leaflet map, abstracting away the ugly parts.
@@ -31,7 +33,8 @@ BusMap.Map = function(opts) {
         if (that.opts.zoom) that.leaflet.setZoom(that.opts.zoom);
 
         // Put "About" link into the attribution box
-        $(".leaflet-control-attribution").html('<a id="show-about" href="#">About</a>');
+        $(".leaflet-control-attribution")
+            .html('<a id="show-about" href="#">About</a>');
         $("#show-about").click(function() { $("#about").show(); });
         $("#close-about").click(function() { $("#about").hide(); });
 
@@ -48,7 +51,9 @@ BusMap.Map = function(opts) {
         var tileOptions = {
         };
         if (that.opts.tileOptions) {
-            for (o in that.opts.tileOptions) { tileOptions[o] = that.opts.tileOptions[o]; }
+            for (o in that.opts.tileOptions) {
+                tileOptions[o] = that.opts.tileOptions[o];
+            }
         }
         L.tileLayer(tileUrl, tileOptions).addTo(that.leaflet);
 
@@ -114,6 +119,7 @@ BusMap.Map = function(opts) {
                     }
                 }
                 that.vehicles = data.locations;
+                updateVehiclesUI(that.vehicles);
                 updateStopsUI(that.stops);
             });
         return that;
@@ -121,18 +127,20 @@ BusMap.Map = function(opts) {
 
     /* Refresh (and/or create) UI elements for Vehicles */
     function updateVehiclesUI(vehicles) {
-        // TODO
         return that;
     }
 
     /* Refresh (and/or create) UI elements for Stops */
     function updateStopsUI(stops) {
-        var markers = L.markerClusterGroup({
-            disableClusteringAtZoom: 14,
-            maxClusterRadius: 40,
-            showCoverageOnHover: false,
-            zoomToBoundsOnClick: false,
-        });
+        if (!(that.stopMarkersClusterGroup)) {
+            that.stopMarkersClusterGroup = L.markerClusterGroup({
+                disableClusteringAtZoom: 14,
+                maxClusterRadius: 40,
+                showCoverageOnHover: false,
+                zoomToBoundsOnClick: false,
+            });
+            that.leaflet.addLayer(that.stopMarkersClusterGroup);
+        }
         for (var s in stops) {
             var text = '<header>' + stops[s].title + '</header>';
             var popupOpts = {
@@ -154,7 +162,7 @@ BusMap.Map = function(opts) {
                 stopMarkers[s] = L.marker(
                     [stops[s].lat, stops[s].lon],
                     markerOpts).bindPopup(text, popupOpts);
-                markers.addLayer(stopMarkers[s]);
+                that.stopMarkersClusterGroup.addLayer(stopMarkers[s]);
             }
             /* Add predictions to the marker popup, if available  */
             if (that.stops[s].predictions) {
@@ -162,10 +170,14 @@ BusMap.Map = function(opts) {
                 var now = new Date();
                 var offset_mins = now.getTimezoneOffset();
                 for (r in stops[s].predictions) {
-                    var p_line = "<strong>" + that.routes[r].title + "</strong>:";
+                    var p_line = "<strong>" + that.routes[r].title + "</strong>: ";
                     var times = [];
-                    for (p in stops[s].predictions[r]) {
-                        pr = stops[s].predictions[r][p];
+                    // Sort by estimated time to arrival
+                    psorted = stops[s].predictions[r].sort(function(a,b){
+                        return new Date(a.prediction).getTime() - new Date(b.prediction).getTime();
+                    });
+                    for (p in psorted) {
+                        pr = psorted[p];
                         var pdate = new Date(pr.prediction);
                         var diff_sec = (pdate.getTime() - now.getTime()) / 1000;
                         var diff_min = Math.ceil(diff_sec / 60) + offset_mins;
@@ -174,18 +186,21 @@ BusMap.Map = function(opts) {
                         if (diff_min <= 1) { pclass = "lt1min"; }
                         else if (diff_min <= 2 ) { pclass = "lt2mins"; }
                         else if (diff_min <= 5 ) { pclass = "lt5mins"; }
-                        times.push(" <span class='prediction " + pclass + "' title='" + pr.vehicle + "'>"
-                                    + diff_min + "</span>");
+                        times.push("<span class='prediction " + pclass
+                                 + "' title='" + pr.vehicle + "'>"
+                                 + diff_min + "</span>");
                     }
                     p_line += times.join(", ");
                     predictions.push(p_line);
                 }
-                if (predictions.length == 0) { predictions = ['No vehicle arrival predictions.']; }
-                text += '<section class="predictions">' + predictions.sort().join("<br>") + '</section>';
+                if (predictions.length == 0) {
+                    predictions = ['No vehicle arrival predictions.'];
+                }
+                text += '<section class="predictions">'
+                      + predictions.sort().join("<br>") + '</section>';
                 stopMarkers[s]._popup.setContent(text);
             }
         }
-        that.leaflet.addLayer(markers);
         return that;
     }
 
@@ -202,33 +217,38 @@ BusMap.Map = function(opts) {
 
     function updateLastView() {
         var ll = that.leaflet.getCenter();
-        view = Math.round(ll.lat * 1000000) / 1000000 + ',' + Math.round(ll.lng * 1000000) / 1000000+ ',' + that.leaflet.getZoom();
+        view = Math.round(ll.lat * 1000000) / 1000000 + ','
+             + Math.round(ll.lng * 1000000) / 1000000 + ','
+             + that.leaflet.getZoom();
         BusMap.setCookie('last_view', view);
     }
 
     return that;
 };
 
-// http://stackoverflow.com/a/4004010
-if (typeof String.prototype.trimLeft !== "function") {
-    String.prototype.trimLeft = function() {
-        return this.replace(/^\s+/, "");
-    };
-}
-if (typeof String.prototype.trimRight !== "function") {
-    String.prototype.trimRight = function() {
-        return this.replace(/\s+$/, "");
-    };
-}
-if (typeof Array.prototype.map !== "function") {
-    Array.prototype.map = function(callback, thisArg) {
-        for (var i=0, n=this.length, a=[]; i<n; i++) {
-            if (i in this) a[i] = callback.call(thisArg, this[i]);
-        }
-        return a;
-    };
-}
+/* Methods to set and get BusMap-related cookies */
 BusMap.getCookies = function() {
+    // http://stackoverflow.com/a/4004010
+    // String Prototype Methods - these are useful, declare for older browsers.
+    if (typeof String.prototype.trimLeft !== "function") {
+        String.prototype.trimLeft = function() {
+            return this.replace(/^\s+/, "");
+        };
+    }
+    if (typeof String.prototype.trimRight !== "function") {
+        String.prototype.trimRight = function() {
+            return this.replace(/\s+$/, "");
+        };
+    }
+    if (typeof Array.prototype.map !== "function") {
+        Array.prototype.map = function(callback, thisArg) {
+            for (var i=0, n=this.length, a=[]; i<n; i++) {
+                if (i in this) a[i] = callback.call(thisArg, this[i]);
+            }
+            return a;
+        };
+    }
+    // Retrieve and return all cookies
     var c = document.cookie, v = 0, cookies = {};
     if (document.cookie.match(/^\s*\$Version=(?:"1"|1);\s*(.*)/)) {
         c = RegExp.$1;
@@ -242,7 +262,8 @@ BusMap.getCookies = function() {
             cookies[name] = value;
         });
     } else {
-        c.match(/(?:^|\s+)([!#$%&'*+\-.0-9A-Z^`a-z|~]+)=([!#$%&'*+\-.0-9A-Z^`a-z|~]*|"(?:[\x20-\x7E\x80\xFF]|\\[\x00-\x7F])*")(?=\s*[,;]|$)/g).map(function($0, $1) {
+        c_re = /(?:^|\s+)([!#$%&'*+\-.0-9A-Z^`a-z|~]+)=([!#$%&'*+\-.0-9A-Z^`a-z|~]*|"(?:[\x20-\x7E\x80\xFF]|\\[\x00-\x7F])*")(?=\s*[,;]|$)/g
+        c.match(c_re).map(function($0, $1) {
             var name = $0,
                 value = $1.charAt(0) === '"'
                           ? $1.substr(1, -1).replace(/\\(.)/g, "$1")
@@ -253,9 +274,8 @@ BusMap.getCookies = function() {
     return cookies;
 }
 BusMap.getCookie = function(name) {
-    return BusMap.getCookies()["BM-" + name];
+    return BusMap.getCookies()[BusMap.cookiePrefix + name];
 }
-
 BusMap.setCookie = function(name, value, exp_days) {
     if (exp_days == undefined) {
         exp_days = 365;
@@ -263,5 +283,5 @@ BusMap.setCookie = function(name, value, exp_days) {
     exp_date = new Date();
     exp_date.setDate(exp_date.getDate() + exp_days);
     value = escape(value) + "; expires=" + exp_date.toUTCString();
-    document.cookie = "BM-" + name + "=" + value;
+    document.cookie = BusMap.cookiePrefix + name + "=" + value;
 }
