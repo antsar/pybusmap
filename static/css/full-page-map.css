@@ -11,8 +11,17 @@ html, body {
     height: 100%;
     width: 100%;
 }
+#map .prediction.lt1min {
+    color: #f00;
+}
+#map .prediction.lt2mins {
+    color: #f80;
+}
+#map .prediction.lt5mins {
+    color: #ff0;
+}
 
-/* Bottom-right about box */
+/* Attribution link / "About" popup */
 #map .leaflet-control-attribution {
     background-color: rgba(0,0,0,.8);
     border-top: 1px solid #eee;
@@ -20,10 +29,10 @@ html, body {
     border-top-left-radius: 3px;
     color: #eee;
 }
-a,
-a:hover,
-a:visited,
-a:active {
+#map a,
+#map a:hover,
+#map a:visited,
+#map a:active {
     color: #fff;
     font-weight: bold;
     text-decoration: none;

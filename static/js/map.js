@@ -7,10 +7,10 @@ var BusMap = {};
 */
 BusMap.Map = function(opts) {
     this.opts = opts;
-    var that = this;
     var stops = {};
     var stopMarkers = {};
     var routes = {};
+    var that = this;
     init();
 
     /* Constructor - create/initialize the map */
@@ -30,17 +30,16 @@ BusMap.Map = function(opts) {
         else {that.leaflet.fitBounds(that.opts.bounds)}
         if (that.opts.zoom) that.leaflet.setZoom(that.opts.zoom);
 
-        // Set attribution
+        // Put "About" link into the attribution box
         $(".leaflet-control-attribution").html('<a id="show-about" href="#">About</a>');
         $("#show-about").click(function() { $("#about").show(); });
         $("#close-about").click(function() { $("#about").hide(); });
 
-        // Restore the user's last view.
+        // Restore the user's last view (if exists).
         goToLastView();
 
-        // Bind map event handlers
+        // Store view parameters for recovery later.
         that.leaflet.on('moveend', function() {
-            // Store the lat/lon/zoom so we can restore it later
             updateLastView();
         });
 
@@ -91,13 +90,31 @@ BusMap.Map = function(opts) {
         };
         $.getJSON(url, params)
             .done(function(data) {
-                /* TODO: Fix all this shit, what the fuck */
+                // Store vehicle locations
+                that.vehicles = data.locations;
+                // Store predictions
+                for (var s in that.stops) {
+                    that.stops[s].predictions = {};
+                }
+                for (var v in that.vehicles) {
+                    that.vehicles[v].predictions = {};
+                }
                 for (var p in data.predictions) {
                     pr = data.predictions[p];
-                    // Store this prediction on the stop and on the vehicle.
+                    if (that.stops && pr.stop_id in that.stops) {
+                        // Store this prediction with the relevant stop
+                        if (!(pr.route in that.stops[pr.stop_id].predictions)) {
+                            that.stops[pr.stop_id].predictions[pr.route] = [];
+                        }
+                        that.stops[pr.stop_id].predictions[pr.route].push(pr);
+                    }
+                    if (that.vehicles && pr.vehicle in that.vehicles) {
+                        // Store this prediction with the relevant vehicle
+                        that.vehicles[pr.vehicle].predictions[pr.stop_id] = pr;
+                    }
                 }
                 that.vehicles = data.locations;
-                //updateStopsUI(that.stops);
+                updateStopsUI(that.stops);
             });
         return that;
     };
@@ -117,34 +134,56 @@ BusMap.Map = function(opts) {
             zoomToBoundsOnClick: false,
         });
         for (var s in stops) {
-            var markerIcon = L.icon({
-                iconUrl: 'static/img/stop27x60.png',
-                iconSize: [13, 30],
-                iconAnchor: [6, 30],
-            });
             var text = '<header>' + stops[s].title + '</header>';
-            var predictions = ['No vehicle arrival predictions.'];
-            predictions.push('No vehicle arrival predictions.');
-            if (stops[s].predictions) {
-                var predictions = [];
-                for (rt in stops[s].predictions) {
-                    // do shit with prediction
-                }
-            }
-            text += '<section class="predictions">' + predictions.join("<br>") + '</section>';
-            var markerOpts = {
-                title: stops[s].title,
-                icon: markerIcon,
-                opacity: 1,
-            };
             var popupOpts = {
                 closeButton: true,
                 keepInView: true,
             };
-            stopMarkers[stops[s].tag + "*" + stops[s].route] = L.marker(
-                [stops[s].lat, stops[s].lon],
-                markerOpts).bindPopup(text, popupOpts);
-            markers.addLayer(stopMarkers[stops[s].tag + "*" + stops[s].route]);
+            if (!(s in stopMarkers)) {
+                /* Stop marker doesn't exist yet - create it now. */
+                var markerIcon = L.icon({
+                    iconUrl: 'static/img/stop27x60.png',
+                    iconSize: [13, 30],
+                    iconAnchor: [6, 30],
+                });
+                var markerOpts = {
+                    title: stops[s].title,
+                    icon: markerIcon,
+                    opacity: 1,
+                };
+                stopMarkers[s] = L.marker(
+                    [stops[s].lat, stops[s].lon],
+                    markerOpts).bindPopup(text, popupOpts);
+                markers.addLayer(stopMarkers[s]);
+            }
+            /* Add predictions to the marker popup, if available  */
+            if (that.stops[s].predictions) {
+                var predictions = [];
+                var now = new Date();
+                var offset_mins = now.getTimezoneOffset();
+                for (r in stops[s].predictions) {
+                    var p_line = "<strong>" + that.routes[r].title + "</strong>:";
+                    var times = [];
+                    for (p in stops[s].predictions[r]) {
+                        pr = stops[s].predictions[r][p];
+                        var pdate = new Date(pr.prediction);
+                        var diff_sec = (pdate.getTime() - now.getTime()) / 1000;
+                        var diff_min = Math.ceil(diff_sec / 60) + offset_mins;
+                        // CSS classes for predictions
+                        var pclass = "";
+                        if (diff_min <= 1) { pclass = "lt1min"; }
+                        else if (diff_min <= 2 ) { pclass = "lt2mins"; }
+                        else if (diff_min <= 5 ) { pclass = "lt5mins"; }
+                        times.push(" <span class='prediction " + pclass + "' title='" + pr.vehicle + "'>"
+                                    + diff_min + "</span>");
+                    }
+                    p_line += times.join(", ");
+                    predictions.push(p_line);
+                }
+                if (predictions.length == 0) { predictions = ['No vehicle arrival predictions.']; }
+                text += '<section class="predictions">' + predictions.sort().join("<br>") + '</section>';
+                stopMarkers[s]._popup.setContent(text);
+            }
         }
         that.leaflet.addLayer(markers);
         return that;
@@ -154,7 +193,7 @@ BusMap.Map = function(opts) {
         var last = BusMap.getCookie('last_view');
         if (last && last != "") {
             last = last.split(",");
-            that.leaflet.setView(L.latLng(last[0], last[1]), last[2]);
+            that.leaflet.setView([last[0], last[1]], last[2]);
             return true;
         } else {
             return false;
@@ -163,7 +202,7 @@ BusMap.Map = function(opts) {
 
     function updateLastView() {
         var ll = that.leaflet.getCenter();
-        view = ll.lat + ',' + ll.lng + ',' + that.leaflet.getZoom();
+        view = Math.round(ll.lat * 1000000) / 1000000 + ',' + Math.round(ll.lng * 1000000) / 1000000+ ',' + that.leaflet.getZoom();
         BusMap.setCookie('last_view', view);
     }
 
