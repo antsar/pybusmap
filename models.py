@@ -65,7 +65,7 @@ class Agency(db.Model, BMModel):
     short_title = db.Column(db.String)
 
     # region - Geographic area (States, etc)
-    region_id = db.Column(db.Integer, db.ForeignKey('region.id', ondelete="cascade"))
+    region_id = db.Column(db.Integer, db.ForeignKey('region.id', ondelete="cascade"), nullable=False)
     region = db.relationship("Region")
 
     # API Request which was used to retrieve this data
@@ -85,7 +85,7 @@ class ApiCall(db.Model, BMModel):
     __tablename__ = "api_call"
     id = db.Column(db.Integer, primary_key=True)
 
-    # Full URL of request
+    # URL of request
     url = db.Column(db.String)
 
     # Size of the dataset in bytes
@@ -116,7 +116,7 @@ class Direction(db.Model, BMModel):
     id = db.Column(db.Integer, primary_key=True)
 
     # route_id - The agency which operates this route
-    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
+    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"), nullable=False)
 
     # tag - Unique alphanumeric identifier (a.k.a. "machine name")
     tag = db.Column(db.String)
@@ -144,7 +144,7 @@ class Prediction(db.Model, BMModel):
     id = db.Column(db.Integer, primary_key=True)
 
     # route - the bus route
-    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
+    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"), nullable=False)
     route = db.relationship("Route")
 
     # prediction - the predicted time of arrival
@@ -160,7 +160,7 @@ class Prediction(db.Model, BMModel):
     has_layover  = db.Column(db.Boolean)
 
     # direction - Direction for this prediction
-    direction_id = db.Column(db.Integer, db.ForeignKey('direction.id', ondelete="cascade"))
+    direction_id = db.Column(db.Integer, db.ForeignKey('direction.id', ondelete="cascade"), nullable=False)
     direction = db.relationship("Direction")
 
     # vehicle - Bus ID (not always numeric)
@@ -212,7 +212,7 @@ class Route(db.Model, BMModel):
     id = db.Column(db.Integer, primary_key=True)
 
     # agency - The agency which operates this route
-    agency_id = db.Column(db.Integer, db.ForeignKey('agency.id', ondelete="cascade"))
+    agency_id = db.Column(db.Integer, db.ForeignKey('agency.id', ondelete="cascade"), nullable=False)
     agency = db.relationship("Agency", backref="routes")
 
     # tag - Unique alphanumeric identifier (a.k.a. "machine name")
@@ -246,11 +246,10 @@ class Route(db.Model, BMModel):
     directions = db.relationship("Direction", backref="route", lazy="joined")
 
     # stops - Stops or stations on this route
-    #stops = db.relationship("Stop", secondary=route_stop, back_populates="routes", lazy="joined", collection_class=attribute_mapped_collection("id"), cascade="all", passive_deletes=True)
     stops = association_proxy("route_stop", "stop")
 
     # vehicleLocations - Locations of vehicles on this route.
-    vehicle_locations = db.relationship("VehicleLocation", backref="route")
+    vehicle_locations = db.relationship("VehicleLocation", backref=backref("route"))
 
     # paths - Path segments which this route consists of
     # TODO: implement paths
@@ -407,7 +406,7 @@ class VehicleLocation(db.Model, BMModel):
     vehicle = db.Column(db.String)
 
     # The route which this vehicle is serving
-    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"))
+    route_id = db.Column(db.Integer, db.ForeignKey('route.id', ondelete="cascade"), nullable=False)
 
     # direction - Direction for this prediction
     direction_id = db.Column(db.Integer, db.ForeignKey('direction.id', ondelete="cascade"))
@@ -438,11 +437,12 @@ class VehicleLocation(db.Model, BMModel):
     def serialize(self):
         return {
             'vehicle': self.vehicle,
-            'route': self.route.tag,
+            'route': self.route.tag if self.route else None,
             'direction': self.direction.tag if self.direction else None,
             'lat': self.lat,
             'lon': self.lon,
             'time': self.time,
+            'heading': self.heading,
             'speed': self.speed,
         }
 
