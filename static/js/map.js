@@ -1,6 +1,7 @@
 /* The primary class for this project */
 var BusMap = {
-    cookiePrefix: "BM_"
+    cookiePrefix: "BM_",
+    zoomShowVehicles: 15,
 };
 
 /*
@@ -10,7 +11,6 @@ var BusMap = {
 BusMap.Map = function(opts) {
     this.opts = opts;
     var stops = {};
-    var stopMarkers = {};
     var routes = {};
     var that = this;
     init();
@@ -32,19 +32,14 @@ BusMap.Map = function(opts) {
         else {that.leaflet.fitBounds(that.opts.bounds)}
         if (that.opts.zoom) that.leaflet.setZoom(that.opts.zoom);
 
-        // Put "About" link into the attribution box
-        $(".leaflet-control-attribution")
-            .html('<a id="show-about" href="#">About</a>');
-        $("#show-about").click(function() { $("#about").show(); });
-        $("#close-about").click(function() { $("#about").hide(); });
-
         // Restore the user's last view (if exists).
-        goToLastView();
+        lastViewRecover();
 
         // Store view parameters for recovery later.
-        that.leaflet.on('moveend', function() {
-            updateLastView();
-        });
+        that.leaflet.on('moveend', lastViewStore);
+
+        // Show/hide markers based on zoom.
+        that.leaflet.on('zoomend', zoomShowHide);
 
         // Configure and apply the map tile layer
         var tileUrl = that.opts.tileUrl;
@@ -60,7 +55,6 @@ BusMap.Map = function(opts) {
         // Fetch initial data
         updateRoutes();
         updateVehicles();
-
         // Begin timed data updates
         if (that.opts.refresh.routes) {
             setInterval(updateRoutes, that.opts.refresh.routes * 1000);
@@ -74,8 +68,8 @@ BusMap.Map = function(opts) {
     function updateRoutes() {
         var url = "ajax";
         var params = {
-            "dataset": "routes",
-            "agency": that.opts.agency,
+            dataset: "routes",
+            agency: that.opts.agency,
         };
         $.getJSON(url, params)
             .done(function(data) {
@@ -90,8 +84,8 @@ BusMap.Map = function(opts) {
     function updateVehicles() {
         var url = "ajax";
         var params = {
-            "dataset": "vehicles",
-            "agency": that.opts.agency,
+            dataset: "vehicles",
+            agency: that.opts.agency,
         };
         $.getJSON(url, params)
             .done(function(data) {
@@ -102,7 +96,7 @@ BusMap.Map = function(opts) {
                     that.stops[s].predictions = {};
                 }
                 for (var v in that.vehicles) {
-                    that.vehicles[v].predictions = {};
+                    that.vehicles[v].predictions = [];
                 }
                 for (var p in data.predictions) {
                     pr = data.predictions[p];
@@ -115,7 +109,7 @@ BusMap.Map = function(opts) {
                     }
                     if (that.vehicles && pr.vehicle in that.vehicles) {
                         // Store this prediction with the relevant vehicle
-                        that.vehicles[pr.vehicle].predictions[pr.stop_id] = pr;
+                        that.vehicles[pr.vehicle].predictions.push(pr);
                     }
                 }
                 that.vehicles = data.locations;
@@ -127,7 +121,87 @@ BusMap.Map = function(opts) {
 
     /* Refresh (and/or create) UI elements for Vehicles */
     function updateVehiclesUI(vehicles) {
-        return that;
+        if (!(that.vehicleMarkersGroup)) {
+            that.vehicleMarkersGroup = L.layerGroup();
+            that.leaflet.addLayer(that.vehicleMarkersGroup);
+        }
+        if (!that.vehicleMarkers) {
+            that.vehicleMarkers = {};
+        }
+        for (var v in vehicles) {
+            if (that.routes) {
+                if (vehicles[v].route && vehicles[v].route in that.routes) {
+                    var route = that.routes[vehicles[v].route].title;
+                } else {
+                    // This is debugging... Don't leave this shit here.
+                    var route = "No Route ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
+                    console.log("Vehicle \"" + v + "\" references unknown route \"" + vehicles[v].route + "\"");
+                }
+            } else {
+                var route = vehicles[v].vehicle;
+            }
+            var text = '<header>' + route + '</header>';
+            var text_after = '<footer>Bus # ' + vehicles[v].vehicle + '</footer>';
+            var popupOpts = {
+                closeButton: false,
+                keepInView: true,
+            };
+            if (!(v in that.vehicleMarkers)) {
+                var markerIcon = L.icon({
+                    iconUrl: 'static/img/bus.png',
+                    iconSize: [21,25],
+                    iconAnchor: [10,12],
+                });
+                that.vehicleMarkers[v] = L.marker([vehicles[v].lat, vehicles[v].lon], {
+                    icon: markerIcon,
+                    iconAngle: vehicles[v].heading
+                }).bindLabel(route, {
+                    noHide: true,
+                    direction: 'right',
+                    className: 'bus-label',
+                }).bindPopup(text + text_after, popupOpts).addTo(that.vehicleMarkersGroup);
+            } else {
+                that.vehicleMarkers[v].setLatLng([vehicles[v].lat, vehicles[v].lon])
+                    .setIconAngle(vehicles[v].heading);
+            }
+
+            // Add predictions to the marker popup, if available
+            if (that.stops && vehicles[v].predictions) {
+                var predictions = [];
+                var now = new Date();
+                var offset_mins = now.getTimezoneOffset();
+                psorted = vehicles[v].predictions.sort(function(a,b){
+                    return new Date(a.prediction).getTime() - new Date(b.prediction).getTime();
+                });
+                for (p in psorted) {
+                    pr = psorted[p];
+                    var p_line = "<strong>" + that.stops[pr.stop_id].title + "</strong>: ";
+                    var pdate = new Date(pr.prediction);
+                    var diff_sec = (pdate.getTime() - now.getTime()) / 1000;
+                    var diff_min = Math.ceil(diff_sec / 60) + offset_mins;
+                    // CSS classes for predictions
+                    var pclass = "";
+                    if (diff_min <= 1) { pclass = "lt1min"; }
+                    else if (diff_min <= 2 ) { pclass = "lt2mins"; }
+                    else if (diff_min <= 5 ) { pclass = "lt5mins"; }
+                    p_line += ("<span class='prediction " + pclass
+                             + "' title='" + pr.vehicle + "'>"
+                             + diff_min + "</span>");
+
+                    predictions.push("<div class='stop'" + p_line + "</div>");
+                }
+                if (predictions.length == 0) {
+                    predictions = ['<div class="none">No arrival predictions.</div>'];
+                } else if (predictions.length > 5) {
+                    predictions.push("<div class='more'><a href='javascript:void(0);' onclick='$(this).hide().parent().parent().parent().addClass(\"show-all-predictions\");'>see more</a></div>");
+                }
+                text += '<section class="predictions vehicle-predictions">'
+                      + predictions.join("") + '</section>' + text_after;
+                that.vehicleMarkers[v]._popup.setContent(text);
+            }
+        }
+        // Call this here to hide vehicles if we shouldn't be showing them just yet.
+        zoomShowHide();
     }
 
     /* Refresh (and/or create) UI elements for Stops */
@@ -137,18 +211,20 @@ BusMap.Map = function(opts) {
                 disableClusteringAtZoom: 14,
                 maxClusterRadius: 40,
                 showCoverageOnHover: false,
-                zoomToBoundsOnClick: false,
             });
             that.leaflet.addLayer(that.stopMarkersClusterGroup);
+        }
+        if (!that.stopMarkers) {
+            that.stopMarkers = {};
         }
         for (var s in stops) {
             var text = '<header>' + stops[s].title + '</header>';
             var popupOpts = {
-                closeButton: true,
+                closeButton: false,
                 keepInView: true,
             };
-            if (!(s in stopMarkers)) {
-                /* Stop marker doesn't exist yet - create it now. */
+            if (!(s in that.stopMarkers)) {
+                // Stop marker doesn't exist yet - create it now.
                 var markerIcon = L.icon({
                     iconUrl: 'static/img/stop27x60.png',
                     iconSize: [13, 30],
@@ -159,17 +235,20 @@ BusMap.Map = function(opts) {
                     icon: markerIcon,
                     opacity: 1,
                 };
-                stopMarkers[s] = L.marker(
+                that.stopMarkers[s] = L.marker(
                     [stops[s].lat, stops[s].lon],
                     markerOpts).bindPopup(text, popupOpts);
-                that.stopMarkersClusterGroup.addLayer(stopMarkers[s]);
+                that.stopMarkersClusterGroup.addLayer(that.stopMarkers[s]);
             }
-            /* Add predictions to the marker popup, if available  */
-            if (that.stops[s].predictions) {
+            // Add predictions to the marker popup, if available
+            if (stops[s].predictions) {
                 var predictions = [];
                 var now = new Date();
                 var offset_mins = now.getTimezoneOffset();
                 for (r in stops[s].predictions) {
+                    if (!(r in that.routes)) {
+                        console.log("Unknown route " + r + " for stop " + stops[s].title);
+                    }
                     var p_line = "<strong>" + that.routes[r].title + "</strong>: ";
                     var times = [];
                     // Sort by estimated time to arrival
@@ -191,20 +270,20 @@ BusMap.Map = function(opts) {
                                  + diff_min + "</span>");
                     }
                     p_line += times.join(", ");
-                    predictions.push(p_line);
+                    predictions.push("<span class='route'" + p_line + "</span>");
                 }
                 if (predictions.length == 0) {
-                    predictions = ['No vehicle arrival predictions.'];
+                    predictions = ['<span class="none">No arrival predictions.</span>'];
                 }
-                text += '<section class="predictions">'
+                text += '<section class="predictions stop-predictions">'
                       + predictions.sort().join("<br>") + '</section>';
-                stopMarkers[s]._popup.setContent(text);
+                that.stopMarkers[s]._popup.setContent(text);
             }
         }
-        return that;
     }
 
-    function goToLastView() {
+    // Map view persistence functions
+    function lastViewRecover() {
         var last = BusMap.getCookie('last_view');
         if (last && last != "") {
             last = last.split(",");
@@ -214,13 +293,24 @@ BusMap.Map = function(opts) {
             return false;
         }
     }
-
-    function updateLastView() {
+    function lastViewStore() {
         var ll = that.leaflet.getCenter();
         view = Math.round(ll.lat * 1000000) / 1000000 + ','
              + Math.round(ll.lng * 1000000) / 1000000 + ','
              + that.leaflet.getZoom();
         BusMap.setCookie('last_view', view);
+    }
+
+    // Scaling: update what is displayed based on zoom level
+    function zoomShowHide() {
+        var zoom = that.leaflet.getZoom();
+        if (that.vehicleMarkersGroup) {
+            if (zoom >= that.zoomShowVehicles && !(that.leaflet.hasLayer(that.vehicleMarkersGroup))) {
+                that.leaflet.addLayer(that.vehicleMarkersGroup);
+            } else if (zoom < that.zoomShowVehicles && that.leaflet.hasLayer(that.vehicleMarkersGroup)) {
+                that.leaflet.removeLayer(that.vehicleMarkersGroup);
+            }
+        }
     }
 
     return that;

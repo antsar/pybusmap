@@ -15,6 +15,9 @@
   ],
   "dependencies": {
     "leaflet": "~0.7.7",
-    "jquery": "~2.1.4"
+    "jquery": "~2.1.4",
+    "leaflet.markercluster": "~0.4.0",
+    "leaflet-marker-rotate": "https://git.xhost.io/anton/leaflet-marker-rotate.git",
+    "Leaflet.label": "~0.2.1"
   }
 }

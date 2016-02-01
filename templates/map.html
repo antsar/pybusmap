@@ -7,6 +7,7 @@
     {{ super() }}
     <link href="bower/leaflet/dist/leaflet.css" rel="stylesheet"/>
     <link href="bower/leaflet.markercluster/dist/MarkerCluster.Default.css" rel="stylesheet"/>
+    <link href="bower/Leaflet.label/dist/leaflet.label.css" rel="stylesheet"/>
     <link href="static/css/full-page-map.css" rel="stylesheet" />
 {% endblock %}
 {% block body %}
@@ -38,11 +39,17 @@
             Data sourced from the <a href="http://nextbus.com">Nextbus</a> API.
         </p>
     </div>
+    <div id="msg">
+        <span id="msg-zoomForVehicles">Zoom in to see vehicles</span>
+    </div>
     <script src="bower/leaflet/dist/leaflet.js"></script>
+    <script src="bower/Leaflet.label/dist/leaflet.label.js"></script>
     <script src="bower/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+    <script src="bower/leaflet-marker-rotate/leaflet.marker.rotate.js"></script>
     <script src="bower/jquery/dist/jquery.min.js"></script>
     <script src="static/js/map.js"></script>
     <script>
+        // Initialize the map
         var map = BusMap.Map({
             agency: {{ agency.tag|tojson|safe }},
             mapElement: $("#map").get(0),
@@ -63,5 +70,12 @@
                 vehicles: 5,
             },
         });
+
+        // Put "About" link into the attribution box
+        $(".leaflet-control-attribution")
+            .html('<a id="show-about" href="javascript:void(0)">About</a>');
+        $("#show-about").click(function() { $("#about").show(); });
+        $("#close-about").click(function() { $("#about").hide(); });
+
     </script>
 {% endblock %}

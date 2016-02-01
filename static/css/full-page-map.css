@@ -20,6 +20,18 @@ html, body {
     color: #ff0;
 }
 
+/* Messages displayed above the map */
+#msg {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: #f00;
+}
+#msg span {
+    display: none;
+}
+
 /* Attribution link / "About" popup */
 #map .leaflet-control-attribution {
     background-color: rgba(0,0,0,.8);
@@ -36,9 +48,27 @@ html, body {
     font-weight: bold;
     text-decoration: none;
 }
-#map div.leaflet-popup a.leaflet-popup-close-button {
+#map div.leaflet-popup header,
+#map div.leaflet-popup footer {
+    text-align: center;
+}
+#map div.leaflet-popup footer {
+    opacity: .75;
+}
+#map div.leaflet-popup .predictions .none {
+    opacity: .75;
+}
+#map div.leaflet-popup .predictions.vehicle-predictions .stop:nth-child(n+6) {
     display: none;
-    padding: 2px 2px 0 0;
+}
+#map div.leaflet-popup .show-all-predictions .predictions.vehicle-predictions .stop:nth-child(n+6) {
+    display: block;
+}
+#map div.leaflet-popup .show-all-predictions .predictions.vehicle-predictions .more {
+    display: none;
+}
+#map div.leaflet-popup .predictions.vehicle-predictions .more {
+    text-align: center;
 }
 #map div.leaflet-popup div.leaflet-popup-content-wrapper {
     border: 3px solid #666;
@@ -84,6 +114,7 @@ html, body {
 #about a:active {
     color: #fff;
     font-weight: bold;
+    text-decoration: none;
 }
 
 @media all and (max-width: 600px) {
