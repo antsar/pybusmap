@@ -47,11 +47,18 @@ def ajax():
 
     def vehicles():
         from models import Agency, Route, VehicleLocation, Prediction
-        vehicle_locations = db.session.query(VehicleLocation)\
-            .join(VehicleLocation.route).join(Route.agency)\
-            .filter(Agency.tag==agency).all()
+        # TODO: Somehow bundle these queries into the object model definitions? So messy :(
+        # 1. Select the latest vehicle locations for each vehicle. (The DB may have old ones too).
+        v_inner = db.session.query(VehicleLocation.vehicle,
+                                db.func.max(VehicleLocation.time).label("time"))\
+                            .group_by(VehicleLocation.vehicle).subquery()
+        vehicle_locations = db.session.query(VehicleLocation).join(v_inner, db.and_(
+                v_inner.c.vehicle == VehicleLocation.vehicle,
+                v_inner.c.time == VehicleLocation.time
+            )).filter(Agency.tag==agency).all()
+        # 2. Select the predictions for each vehicle:stop pair which came from the most recent
+        # API call for that vehicle:stop pair. Old predictions may be stored but we don't want them.
         now = datetime.now()
-
         p_inner = db.session.query(Prediction.vehicle, Prediction.stop_id,
                                    db.func.max(Prediction.api_call_id).label("api_call_id"))\
                             .group_by(Prediction.vehicle, Prediction.stop_id)\

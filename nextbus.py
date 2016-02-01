@@ -94,7 +94,6 @@ class Nextbus():
         """
         fs = FuturesSession(max_workers=cls.api_limits['max_concurrent_requests'])
         futures = []
-        api_calls = []
         # Start parallel requests
         for (params, tagName) in requests:
             url = "{0}?{1}".format(cls.api_url,
@@ -121,7 +120,6 @@ class Nextbus():
                 source = 'Nextbus'
             )
             db.session.add(api_call)
-            api_calls.append(api_call)
             # Handle API error
             if error is not None:
                 should_retry = error.get('shouldRetry')
@@ -199,8 +197,8 @@ class Nextbus():
                             tag = direction.get('tag'),
                             title = direction.get('title'),
                             name = direction.get('name'),
+                            route_id = route_obj.id,
                             api_call_id = api_call.id)
-                        route_obj.directions.append(d)
                 def save_stops(route_xml, route_obj, api_call):
                     stops = route_xml.findall('stop')
                     for stop in stops:
@@ -226,6 +224,7 @@ class Nextbus():
                     lon_max = float(route_xml.get('lonMax')),
                     agency_id = agency.id,
                     api_call = api_call)
+                db.session.flush()
                 save_directions(route_xml, r, api_call)
                 save_stops(route_xml, r, api_call)
                 db.session.flush()
@@ -402,11 +401,10 @@ class Nextbus():
                 if not vehicles:
                     continue
                 for vehicle in vehicles:
-                    route = next((r for r in routes if r.tag == vehicle.get('routeTag')), None)
-                    if route:
-                        direction = next((d for d in route.directions if d.tag == vehicle.get('dirTag')), None)
-                    else:
-                        direction = None
+                    r_tag = api_call.params['r']
+                    a_tag = api_call.params['a']
+                    route = next((r for r in routes if r.tag == r_tag and r.agency.tag == a_tag), None)
+                    direction = next((d for d in route.directions if d.tag == vehicle.get('dirTag')), None)
                     # Convert age in seconds to a DateTime
                     age = timedelta(seconds=int(vehicle.get('secsSinceReport')))
                     time = datetime.now() - age
