@@ -1,13 +1,13 @@
 """empty message
 
-Revision ID: 295c9a7939e
+Revision ID: 40964e5a022
 Revises: None
-Create Date: 2016-01-21 10:08:57.964589
+Create Date: 2016-02-01 17:29:17.477759
 
 """
 
 # revision identifiers, used by Alembic.
-revision = '295c9a7939e'
+revision = '40964e5a022'
 down_revision = None
 
 from alembic import op
@@ -32,9 +32,9 @@ def upgrade():
     sa.Column('title', sa.String(), nullable=True),
     sa.Column('api_call_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['api_call_id'], ['api_call.id'], ondelete='set null'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('title')
+    sa.PrimaryKeyConstraint('id')
     )
+    op.create_index(op.f('ix_region_title'), 'region', ['title'], unique=True)
     op.create_table('stop',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('stop_id', sa.Integer(), nullable=True),
@@ -52,7 +52,7 @@ def upgrade():
     sa.Column('tag', sa.String(), nullable=True),
     sa.Column('title', sa.String(), nullable=True),
     sa.Column('short_title', sa.String(), nullable=True),
-    sa.Column('region_id', sa.Integer(), nullable=True),
+    sa.Column('region_id', sa.Integer(), nullable=False),
     sa.Column('api_call_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['api_call_id'], ['api_call.id'], ondelete='set null'),
     sa.ForeignKeyConstraint(['region_id'], ['region.id'], ondelete='cascade'),
@@ -61,7 +61,7 @@ def upgrade():
     )
     op.create_table('route',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('agency_id', sa.Integer(), nullable=True),
+    sa.Column('agency_id', sa.Integer(), nullable=False),
     sa.Column('tag', sa.String(), nullable=True),
     sa.Column('title', sa.String(), nullable=True),
     sa.Column('short_title', sa.String(), nullable=True),
@@ -79,7 +79,7 @@ def upgrade():
     )
     op.create_table('direction',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('route_id', sa.Integer(), nullable=True),
+    sa.Column('route_id', sa.Integer(), nullable=False),
     sa.Column('tag', sa.String(), nullable=True),
     sa.Column('title', sa.String(), nullable=True),
     sa.Column('name', sa.String(), nullable=True),
@@ -92,19 +92,19 @@ def upgrade():
     op.create_table('route_stop',
     sa.Column('route_id', sa.Integer(), nullable=False),
     sa.Column('stop_id', sa.Integer(), nullable=False),
-    sa.Column('stop_tag', sa.String(), nullable=True),
+    sa.Column('stop_tag', sa.String(), nullable=False),
     sa.ForeignKeyConstraint(['route_id'], ['route.id'], ondelete='cascade'),
     sa.ForeignKeyConstraint(['stop_id'], ['stop.id'], ondelete='cascade'),
     sa.PrimaryKeyConstraint('route_id', 'stop_id')
     )
     op.create_table('prediction',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('route_id', sa.Integer(), nullable=True),
+    sa.Column('route_id', sa.Integer(), nullable=False),
     sa.Column('prediction', sa.DateTime(), nullable=True),
     sa.Column('created', sa.DateTime(), nullable=True),
     sa.Column('is_departure', sa.Boolean(), nullable=True),
     sa.Column('has_layover', sa.Boolean(), nullable=True),
-    sa.Column('direction_id', sa.Integer(), nullable=True),
+    sa.Column('direction_id', sa.Integer(), nullable=False),
     sa.Column('vehicle', sa.String(), nullable=True),
     sa.Column('block', sa.String(), nullable=True),
     sa.Column('stop_id', sa.Integer(), nullable=True),
@@ -118,7 +118,7 @@ def upgrade():
     op.create_table('vehicle_location',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('vehicle', sa.String(), nullable=True),
-    sa.Column('route_id', sa.Integer(), nullable=True),
+    sa.Column('route_id', sa.Integer(), nullable=False),
     sa.Column('direction_id', sa.Integer(), nullable=True),
     sa.Column('lat', sa.Float(), nullable=True),
     sa.Column('lon', sa.Float(), nullable=True),
@@ -144,6 +144,7 @@ def downgrade():
     op.drop_table('route')
     op.drop_table('agency')
     op.drop_table('stop')
+    op.drop_index(op.f('ix_region_title'), table_name='region')
     op.drop_table('region')
     op.drop_table('api_call')
     ### end Alembic commands ###
