@@ -12,8 +12,8 @@
 {% endblock %}
 {% block body %}
     <div id="map"></div>
-    <div id="about">
-        <div id="close-about"><a href="javascript:void(0);">&times;</a></div>
+    <div class="dialog" id="about">
+        <div class="close" id="close-about"><a href="javascript:void(0);">&times;</a></div>
         <h2>About PyBusMap</h2>
         <p>
             This map displays real-time vehicle locations and arrival predictions
@@ -38,9 +38,29 @@
         <p>
             Data sourced from the <a href="http://nextbus.com">Nextbus</a> API.
         </p>
+        <p>
+            NextBus&trade; is a trademark of NextBus Inc.
+        </p>
+    </div>
+    <div class="dialog" id="welcome">
+        <div class="close" id="close-welcome"><a href="javascript:void(0);">&times;</a></div>
+        <h2>Welcome to PyBusMap</h2>
+        <p>
+            Hi! This is PyBusMap. It's a map of buses tracked by NextBus. It has
+            predictions for bus arrival times, and real-time vehicle locations.
+        </p>
+        <p>
+            To see upcoming buses for a stop, click the stop flag <img height="20px" src="static/img/stop27x60.png" alt="stop-icon">.
+        </p>
+        <p>
+            To see upcoming stops for a bus, click the bus <img height="20px" src="static/img/bus.png" alt="bus-icon">.
+        </p>
+        <h2>
+            <a href="javascript:void(0);" onclick="$('#welcome').hide();">Let's Go!</a>
+        </h2>
     </div>
     <div id="msg">
-        <span id="msg-zoomForVehicles">Zoom in to see vehicles</span>
+        <span id="msg-zoomForVehicles">Zoom in to see vehicles.</span>
     </div>
     <script src="bower/leaflet/dist/leaflet.js"></script>
     <script src="bower/Leaflet.label/dist/leaflet.label.js"></script>
@@ -75,7 +95,14 @@
         $(".leaflet-control-attribution")
             .html('<a id="show-about" href="javascript:void(0)">About</a>');
         $("#show-about").click(function() { $("#about").show(); });
-        $("#close-about").click(function() { $("#about").hide(); });
+        $(".dialog .close").click(function() { $(this).parent().hide(); });
+
+        // Display welcome screen on first launch
+        var been_here = BusMap.getCookie('been_here');
+        if (!(been_here)) {
+            $("#welcome").show();
+        }
+        BusMap.setCookie('been_here', Date.now());
 
     </script>
 {% endblock %}

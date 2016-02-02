@@ -2,6 +2,7 @@
 var BusMap = {
     cookiePrefix: "BM_",
     zoomShowVehicles: 15,
+    vehicleMaxAge: 10,
 };
 
 /*
@@ -129,17 +130,13 @@ BusMap.Map = function(opts) {
             that.vehicleMarkers = {};
         }
         for (var v in vehicles) {
-            if (that.routes) {
-                if (vehicles[v].route && vehicles[v].route in that.routes) {
-                    var route = that.routes[vehicles[v].route].title;
-                } else {
-                    // This is debugging... Don't leave this shit here.
-                    var route = "No Route ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
-                    console.log("Vehicle \"" + v + "\" references unknown route \"" + vehicles[v].route + "\"");
-                }
-            } else {
-                var route = vehicles[v].vehicle;
+            if (!that.routes) {
+                // Try again in half a second, routes are loading or refreshing.
+                setTimeout(function() { updateVehiclesUI(vehicles) }, 500);
+                return false;
             }
+
+            var route = that.routes[vehicles[v].route].title;
             var text = '<header>' + route + '</header>';
             var text_after = '<footer>Bus # ' + vehicles[v].vehicle + '</footer>';
             var popupOpts = {
@@ -158,12 +155,12 @@ BusMap.Map = function(opts) {
                 }).bindLabel(route, {
                     noHide: true,
                     direction: 'right',
-                    className: 'bus-label',
                 }).bindPopup(text + text_after, popupOpts).addTo(that.vehicleMarkersGroup);
             } else {
                 that.vehicleMarkers[v].setLatLng([vehicles[v].lat, vehicles[v].lon])
                     .setIconAngle(vehicles[v].heading);
             }
+            that.vehicleMarkers[v].bm_updated = Date.now()
 
             // Add predictions to the marker popup, if available
             if (that.stops && vehicles[v].predictions) {
@@ -200,7 +197,14 @@ BusMap.Map = function(opts) {
                 that.vehicleMarkers[v]._popup.setContent(text);
             }
         }
-        // Call this here to hide vehicles if we shouldn't be showing them just yet.
+        // Remove stale markes from the map
+        for (v in that.vehicleMarkers) {
+            var min_updated = Date.now() - (that.vehicleMaxAge * 1000)
+            if (that.vehicleMarkers[v].bm_updated < min_updated) {
+                delete that.vehicleMarkers[v];
+            }
+        }
+        // Call this here to hide/show vehicles markers based on zoom level.
         zoomShowHide();
     }
 
@@ -307,8 +311,10 @@ BusMap.Map = function(opts) {
         if (that.vehicleMarkersGroup) {
             if (zoom >= that.zoomShowVehicles && !(that.leaflet.hasLayer(that.vehicleMarkersGroup))) {
                 that.leaflet.addLayer(that.vehicleMarkersGroup);
+                $('#msg-zoomForVehicles').hide();
             } else if (zoom < that.zoomShowVehicles && that.leaflet.hasLayer(that.vehicleMarkersGroup)) {
                 that.leaflet.removeLayer(that.vehicleMarkersGroup);
+                $('#msg-zoomForVehicles').show();
             }
         }
     }

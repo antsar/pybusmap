@@ -5,6 +5,7 @@ html, body {
     border: 0;
     margin: 0;
     padding: 0;
+    font-family: sans-serif;
 }
 #map {
     height: 100%;
@@ -23,13 +24,18 @@ html, body {
 /* Messages displayed above the map */
 #msg {
     position: absolute;
-    bottom: 0;
+    bottom: .75em;
     left: 0;
     width: 100%;
-    background-color: #f00;
+    text-align: center;
 }
 #msg span {
     display: none;
+    color: #fff;
+    background-color: rgba(0,0,0,.8);
+    border: 2px solid rgba(255,255,255,.8);
+    border-radius: .75em;
+    padding: .4em;
 }
 
 /* Attribution link / "About" popup */
@@ -70,7 +76,8 @@ html, body {
 #map div.leaflet-popup .predictions.vehicle-predictions .more {
     text-align: center;
 }
-#map div.leaflet-popup div.leaflet-popup-content-wrapper {
+#map div.leaflet-popup div.leaflet-popup-content-wrapper,
+#map div.leaflet-label {
     border: 3px solid #666;
     background: #222;
     color: #eee;
@@ -86,10 +93,9 @@ html, body {
     font-size: 1.3em;
     color: #fff;
 }
-#about {
+.dialog {
     display: none;
     background-color: #444;
-    font-family: sans-serif;
     color: #eee;
     border-radius: 1em;
     box-sizing: border-box;
@@ -102,23 +108,26 @@ html, body {
     max-height: 80%;
     overflow: auto;
 }
-#about #close-about {
+.dialog .close {
     float: right;
 }
-#about h2 {
+.dialog h2 {
     text-align: center;
 }
-#about a,
-#about a:hover,
-#about a:visited,
-#about a:active {
+.dialog a,
+.dialog a:hover,
+.dialog a:visited,
+.dialog a:active {
     color: #fff;
     font-weight: bold;
     text-decoration: none;
 }
+.dialog h2 a {
+    text-decoration: underline;
+}
 
 @media all and (max-width: 600px) {
-    #about {
+    .dialog {
         width: 100%;
         left: 0;
         top: 10%;
