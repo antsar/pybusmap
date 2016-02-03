@@ -8,7 +8,7 @@
     <link href="bower/leaflet/dist/leaflet.css" rel="stylesheet"/>
     <link href="bower/leaflet.markercluster/dist/MarkerCluster.Default.css" rel="stylesheet"/>
     <link href="bower/Leaflet.label/dist/leaflet.label.css" rel="stylesheet"/>
-    <link href="static/css/full-page-map.css" rel="stylesheet" />
+    <link href="static/css/map.css" rel="stylesheet" />
 {% endblock %}
 {% block body %}
     <div id="map" class="{% if embed %}embed{% endif %}"></div>
@@ -67,6 +67,9 @@
     <div id="msg">
         <span id="msg-zoomForVehicles">Zoom in to see vehicles.</span>
     </div>
+    <div id="locate">
+        <a href="javascript:void(0);"><img src="static/img/crosshair.png" alt="Locate"></a>
+    </div>
     <script src="bower/leaflet/dist/leaflet.js"></script>
     <script src="bower/Leaflet.label/dist/leaflet.label.js"></script>
     <script src="bower/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
@@ -109,6 +112,16 @@
             $("#welcome").show();
         }
         BusMap.setCookie('been_here', Date.now());
+
+        // Find the user
+        map.leaflet.on('locationfound', function(l) {
+            map.leaflet.fitBounds(l.bounds);
+        });
+        $("#locate a").click(function() {
+            map.leaflet.locate({
+                timeout: 3000,
+            });
+        });
 
     </script>
 {% endblock %}

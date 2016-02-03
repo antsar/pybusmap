@@ -21,6 +21,23 @@ html, body {
     color: #ff0;
 }
 
+/* Map Buttons */
+#locate {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+}
+#locate a {
+    text-decoration: none;
+}
+#locate a img {
+    background-color: #222;
+    border-radius: 50%;
+    border: 2px solid #666;
+    padding: 0.4em;
+    height: 1.5em;
+}
+
 /* Embed Mode - Hide UI stuff */
 #map.embed .leaflet-control {
     display: none;
