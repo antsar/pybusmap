@@ -331,6 +331,9 @@ class Nextbus():
                 for prediction_set in prediction_sets:
                     route_tag = prediction_set.get('routeTag')
                     route = routes[(agency_tag, route_tag)]
+                    if not route:
+                        # Sometimes this happens. Skip this one, to avoid an exception.
+                        continue
                     stop_tag = prediction_set.get('stopTag')
                     try:
                         stop = route.stops[stop_tag].stop
