@@ -38,6 +38,14 @@ html, body {
     padding: .4em;
 }
 
+/* Text, etc */
+.legalese {
+    text-align: center;
+    font-style: italic;
+    font-size: 0.7em;
+    opacity: 0.75;
+}
+
 /* Attribution link / "About" popup */
 #map .leaflet-control-attribution {
     background-color: rgba(0,0,0,.8);
@@ -45,6 +53,11 @@ html, body {
     border-left: 1px solid #eee;
     border-top-left-radius: 3px;
     color: #eee;
+}
+#map .leaflet-control-zoom,
+#map .leaflet-control-zoom a {
+    border: 1px solid #666;
+    background-color: #222;
 }
 #map a,
 #map a:hover,
@@ -111,6 +124,7 @@ html, body {
 .dialog .close {
     float: right;
 }
+.dialog h1,
 .dialog h2 {
     text-align: center;
 }
@@ -122,6 +136,7 @@ html, body {
     font-weight: bold;
     text-decoration: none;
 }
+.dialog h1 a,
 .dialog h2 a {
     text-decoration: underline;
 }

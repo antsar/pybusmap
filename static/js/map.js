@@ -20,7 +20,6 @@ BusMap.Map = function(opts) {
     function init() {
         // Create Map
         var mapOptions = {
-            zoomControl: false,
         };
         var boundsOptions = {
             animate: false,
@@ -226,6 +225,7 @@ BusMap.Map = function(opts) {
             var popupOpts = {
                 closeButton: false,
                 keepInView: true,
+                offset: [1,-9],
             };
             if (!(s in that.stopMarkers)) {
                 // Stop marker doesn't exist yet - create it now.
