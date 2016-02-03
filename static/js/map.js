@@ -14,13 +14,11 @@ BusMap.Map = function(opts) {
     var stops = {};
     var routes = {};
     var that = this;
-    init();
 
     /* Constructor - create/initialize the map */
     function init() {
         // Create Map
-        var mapOptions = {
-        };
+        var mapOptions = {};
         var boundsOptions = {
             animate: false,
             reset: true,
@@ -32,11 +30,21 @@ BusMap.Map = function(opts) {
         else {that.leaflet.fitBounds(that.opts.bounds)}
         if (that.opts.zoom) that.leaflet.setZoom(that.opts.zoom);
 
-        // Restore the user's last view (if exists).
-        lastViewRecover();
+        // Go to view requested by URL hash (if set)
+        var viewOk = that.setViewFromUrlHash();
+        // And watch for updates
+        $(window).bind('hashchange', that.setViewFromUrlHash);
+
+        if (!viewOk) {
+            // Restore the user's last view (if exists).
+            lastViewRecover();
+        }
 
         // Store view parameters for recovery later.
         that.leaflet.on('moveend', lastViewStore);
+        that.leaflet.on('moveend', function() {
+            window.location.replace("#" + getViewString());
+        });
 
         // Show/hide markers based on zoom.
         that.leaflet.on('zoomend', zoomShowHide);
@@ -287,6 +295,13 @@ BusMap.Map = function(opts) {
     }
 
     // Map view persistence functions
+    function getViewString() {
+        var ll = that.leaflet.getCenter();
+        var view = Math.round(ll.lat * 1000000) / 1000000 + ','
+             + Math.round(ll.lng * 1000000) / 1000000 + ','
+             + that.leaflet.getZoom();
+        return view;
+    }
     function lastViewRecover() {
         var last = BusMap.getCookie('last_view');
         if (last && last != "") {
@@ -298,10 +313,7 @@ BusMap.Map = function(opts) {
         }
     }
     function lastViewStore() {
-        var ll = that.leaflet.getCenter();
-        view = Math.round(ll.lat * 1000000) / 1000000 + ','
-             + Math.round(ll.lng * 1000000) / 1000000 + ','
-             + that.leaflet.getZoom();
+        var view = getViewString();
         BusMap.setCookie('last_view', view);
     }
 
@@ -319,6 +331,25 @@ BusMap.Map = function(opts) {
         }
     }
 
+    that.setViewFromUrlHash = function() {
+        var hash = window.location.hash.substring(1);
+        hash = hash.split(",");
+        if (hash.length == 2) {
+            that.leaflet.setView([hash[0],hash[1]]);
+            return true;
+        } else if (hash.length == 3) {
+            that.leaflet.setView([hash[0],hash[1]], hash[2]);
+            return true;
+        }
+        return false;
+    }
+
+    that.getUrlFromView = function() {
+        var view = getViewString();
+        return window.location.hostname + window.location.pathname + '#' + view;
+    }
+
+    init();
     return that;
 };
 

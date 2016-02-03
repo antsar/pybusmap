@@ -28,6 +28,14 @@ def map():
     agency = db.session.query(Agency).filter(Agency.tag==agency_tag).one()
     return render_template('map.html', agency=agency, config=app.config)
 
+@app.route('/embed')
+def map_embed():
+    from models import Agency
+    # TODO: serve different agency depending on cookie (or special domain)
+    agency_tag = app.config['AGENCIES'][0]
+    agency = db.session.query(Agency).filter(Agency.tag==agency_tag).one()
+    return render_template('map.html', agency=agency, config=app.config, embed=True)
+
 @app.route('/ajax')
 def ajax():
     # TODO: OPTIMIZE THIS SHIT.

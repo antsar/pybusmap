@@ -11,7 +11,7 @@
     <link href="static/css/full-page-map.css" rel="stylesheet" />
 {% endblock %}
 {% block body %}
-    <div id="map"></div>
+    <div id="map" class="{% if embed %}embed{% endif %}"></div>
     <div class="dialog" id="about">
         <div class="close" id="close-about"><a href="javascript:void(0);">&times;</a></div>
         <h2>About PyBusMap</h2>
@@ -76,6 +76,7 @@
     <script>
         // Initialize the map
         var map = BusMap.Map({
+            {% if embed %}embed: true,{% endif %}
             agency: {{ agency.tag|tojson|safe }},
             mapElement: $("#map").get(0),
             tileUrl: '{{ config['MAP_TILE_URL']|safe }}',

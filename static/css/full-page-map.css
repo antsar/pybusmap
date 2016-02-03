@@ -21,6 +21,11 @@ html, body {
     color: #ff0;
 }
 
+/* Embed Mode - Hide UI stuff */
+#map.embed .leaflet-control {
+    display: none;
+}
+
 /* Messages displayed above the map */
 #msg {
     position: absolute;
