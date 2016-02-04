@@ -16,8 +16,9 @@ from sqlalchemy.sql.expression import ClauseElement
 
 db = SQLAlchemy(session_options={'autocommit': True})
 
-class BMModel():
-    """ Our own Model add-on class for adding utility functions to db.Model. """
+class Model(db.Model):
+    """ Extend SQLAlchemy's Model class with a few handy methods. """
+    __abstract__ = True
     @classmethod
     def get_one(self, session, **kwargs):
         return session.query(self).filter_by(**kwargs).first()
@@ -50,7 +51,7 @@ class BMModel():
             return new
 
 
-class Agency(db.Model, BMModel):
+class Agency(Model):
     """ A transportation agency """
     __tablename__ = "agency"
     id = db.Column(db.Integer, primary_key=True)
@@ -80,7 +81,7 @@ class Agency(db.Model, BMModel):
         }
 
 
-class ApiCall(db.Model, BMModel):
+class ApiCall(Model):
     """ A retrieval of data from a data source. """
     __tablename__ = "api_call"
     id = db.Column(db.Integer, primary_key=True)
@@ -107,7 +108,7 @@ class ApiCall(db.Model, BMModel):
     params = db.Column(postgresql.JSON)
 
 
-class Direction(db.Model, BMModel):
+class Direction(Model):
     """ A direction of a route. "Eastbound" / "Westbound", "Inbound" / "Outbound". """
     __tablename__ = "direction"
     __table_args__ = (
@@ -138,7 +139,7 @@ class Direction(db.Model, BMModel):
         }
 
 
-class Prediction(db.Model, BMModel):
+class Prediction(Model):
     """ A vehicle arrival prediction """
     __tablename__ = "prediction"
     id = db.Column(db.Integer, primary_key=True)
@@ -190,7 +191,7 @@ class Prediction(db.Model, BMModel):
         }
 
 
-class Region(db.Model, BMModel):
+class Region(Model):
     """ A geographic region """
     __tablename__ = "region"
     id = db.Column(db.Integer, primary_key=True)
@@ -203,7 +204,7 @@ class Region(db.Model, BMModel):
     api_call = db.relationship("ApiCall", backref="regions")
 
 
-class Route(db.Model, BMModel):
+class Route(Model):
     """ A transit line: bus route, train line, etc. """
     __tablename__ = "route"
     __table_args__ = (
@@ -278,7 +279,7 @@ class Route(db.Model, BMModel):
             'stops': list(self.stops.keys()),
         }
 
-class RouteStop(db.Model, BMModel):
+class RouteStop(Model):
     """ Association Object for Stop.routes / Route.stops. A simple many-to-many association
         table would not suffice, because we also need to track which Stop Tag is used by this
         Route-Stop combo. A single Stop can have multiple Stop Tags, because Nextbus. """
@@ -299,7 +300,7 @@ class RouteStop(db.Model, BMModel):
 
 
 
-class Stop(db.Model, BMModel):
+class Stop(Model):
     """ A stop or station. Vehicles stop here and pick up or drop off passengers.
     Sometimes the driver gets out to poop.
     Stops are uniquely uniquely identifiable by (lat,lon) """
@@ -397,7 +398,7 @@ class Stop(db.Model, BMModel):
             'routes': list(self.routes.keys()),
         }
 
-class VehicleLocation(db.Model, BMModel):
+class VehicleLocation(Model):
     """ A vehicle geolocation for a specific time. """
     __tablename__ = "vehicle_location"
     id = db.Column(db.Integer, primary_key=True)
