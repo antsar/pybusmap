@@ -1,12 +1,21 @@
-# BusMap.py
-BusMap is a real-time map of public transit vehicle locations. It's written in Python 3.4 with [Flask](http://flask.pocoo.org/).
+# PyBusMap
+PyBusMap is a real-time map of public transit vehicle locations for any agency that uses
+Nextbus vehicle trackers. You can see it live at [rutge.rs](http://rutge.rs).
+
+It's written in Python 3 with [Flask](http://flask.pocoo.org/) and [SQLAlchemy](http://www.sqlalchemy.org/).
+It uses [Celery](http://www.celeryproject.org/) and [requests-futures](https://github.com/ross/requests-futures)
+to get real-time data from [NextBus](https://www.nextbus.com/xmlFeedDocs/NextBusXMLFeed.pdf)
+at regular intervals. That is collected in a PostgreSQL database, and displayed
+on a [Leaflet](http://leafletjs.com/) map.
 
 ## Status
 
-This project is not yet in a usable state. So far it is capable of: fetching (some) data from Nextbus on regular intervals.
-That is not very useful by itself, as it just provides a local cache of Nextbus data. A front-end/UI is coming next, which will make use of the data.
+This project is at v1. It is a feature-complete rewrite of the original
+[PHP version](https://git.xhost.io/anton/bus-map). There are a few features
+planned, like route planning (directions to a place) and maybe a native
+mobile app (some day). **Feature [suggestions](https://ant.sr/contact) are welcome!**
 
-## Setup
+## Setup for Development
 - Install system-wide dependencies  
     `sudo apt-get install python python-pip python-virtualenv libxml2-dev libxsl-dev`
 - Create and/or activate your virtualenv    
@@ -53,3 +62,6 @@ Here's a sample uWSGI config for this application:
     die-on-term = true
     vacuum = true
     smart-attach-daemon = /tmp/pybusmap-celery.pid %(home)/bin/celery -A celerytasks.celery worker --beat --pidfile=/tmp/pybusmap-celery.pid --logfile=%(base)/log/celery/%n.log
+
+## License
+PyBusMap is MIT-licensed. Please use/fork/share it. Contributions are welcome.
