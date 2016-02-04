@@ -160,11 +160,15 @@ BusMap.Map = function(opts) {
                 }).bindLabel(route, {
                     noHide: true,
                     direction: 'right',
+                    clickable: true,
                 }).bindPopup(text + text_after, popupOpts).addTo(that.vehicleMarkersGroup);
             } else {
                 that.vehicleMarkers[v].setLatLng([vehicles[v].lat, vehicles[v].lon])
                     .setIconAngle(vehicles[v].heading);
             }
+            that.vehicleMarkers[v].label.on('click', function() {
+                this._source.openPopup();
+            });
             that.vehicleMarkers[v].bm_updated = Date.now()
 
             // Add predictions to the marker popup, if available
