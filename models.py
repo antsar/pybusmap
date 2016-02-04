@@ -30,7 +30,6 @@ class Model(db.Model):
     @classmethod
     def get_or_create(self, session, create_method='', create_method_kwargs=None, **kwargs):
         """ Try to find an existing object filtering by kwargs. If not found, create. """
-        keys = [k.name for k in inspect(self).primary_key]
         inspector = reflection.Inspector.from_engine(db.engine)
         keys = list(chain.from_iterable([i['column_names'] for i in
                     inspector.get_indexes(inspect(self).mapped_table)]))
@@ -38,12 +37,6 @@ class Model(db.Model):
         filter_args = {arg: kwargs[arg] for arg in kwargs if arg in keys}
         try:
             return session.query(self).filter_by(**filter_args).one()
-        except MultipleResultsFound:
-            raise Exception("{0} matches in get_or_create. This should never happen."
-                " More primary keys are probably needed for some models."
-                "\nkwargs = {1}\nkeys = {2}\nfilter_args = {3}"
-                .format(session.query(self).filter_by(**filter_args).count(),
-                    kwargs, keys, filter_args))
         except NoResultFound:
             kwargs.update(create_method_kwargs or {})
             new = getattr(self, create_method, self)(**kwargs)
