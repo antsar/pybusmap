@@ -26,6 +26,7 @@ html, body {
     position: absolute;
     bottom: 10px;
     left: 10px;
+    z-index: 5000;
 }
 #locate a {
     text-decoration: none;
@@ -75,6 +76,7 @@ html, body {
     border-left: 1px solid #eee;
     border-top-left-radius: 3px;
     color: #eee;
+    z-index: 5000;
 }
 #map .leaflet-control-zoom,
 #map .leaflet-control-zoom a {

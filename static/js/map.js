@@ -32,8 +32,6 @@ BusMap.Map = function(opts) {
 
         // Go to view requested by URL hash (if set)
         var viewOk = that.setViewFromUrlHash();
-        // And watch for updates
-        $(window).bind('hashchange', that.setViewFromUrlHash);
 
         if (!viewOk) {
             // Restore the user's last view (if exists).
@@ -208,6 +206,7 @@ BusMap.Map = function(opts) {
         for (v in that.vehicleMarkers) {
             var min_updated = Date.now() - (that.vehicleMaxAge * 1000)
             if (that.vehicleMarkers[v].bm_updated < min_updated) {
+                that.leaflet.removeLayer(that.vehicleMarkers[v]);
                 delete that.vehicleMarkers[v];
             }
         }
