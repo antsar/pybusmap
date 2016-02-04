@@ -40,7 +40,8 @@ html, body {
 }
 
 /* Embed Mode - Hide UI stuff */
-#map.embed .leaflet-control {
+#map.embed .leaflet-control,
+#map.embed ~ #locate {
     display: none;
 }
 
